@@ -1,0 +1,90 @@
+{
+  "name": "beam",
+  "productName": "Beam",
+  "version": "0.1.0",
+  "description": "A Raycast-style launcher for Ubuntu: apps, files, clipboard history, snippets, quicklinks, emoji, calculator and script commands.",
+  "homepage": "https://beam.local",
+  "main": "dist/main/main.js",
+  "author": {
+    "name": "Vaishakh",
+    "email": "vaishakh@perssonify.com"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "icons": "node scripts/make-icons.mjs",
+    "typecheck": "tsc",
+    "build:main": "node scripts/build-main.mjs",
+    "build:renderer": "vite build",
+    "build": "npm run typecheck && npm run build:main && npm run build:renderer",
+    "start": "npm run build && electron .",
+    "dev": "npm run build:main && concurrently -k \"vite\" \"node scripts/build-main.mjs --watch\" \"sleep 2 && BEAM_DEV_URL=http://localhost:5183 electron . --no-sandbox\"",
+    "test": "node --test tests/*.test.ts",
+    "dist": "npm run build && electron-builder --linux deb"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.1",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.3.4",
+    "concurrently": "9.1.0",
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8",
+    "esbuild": "0.24.0",
+    "mathjs": "13.2.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "5.6.3",
+    "unicode-emoji-json": "0.8.0",
+    "vite": "5.4.11"
+  },
+  "build": {
+    "appId": "com.virallens.beam",
+    "productName": "Beam",
+    "executableName": "beam",
+    "files": [
+      "dist/**/*",
+      "assets/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "linux": {
+      "target": "deb",
+      "category": "Utility",
+      "icon": "assets/icon.png",
+      "synopsis": "Raycast-style launcher for Ubuntu",
+      "desktop": {
+        "StartupWMClass": "Beam",
+        "Keywords": "launcher;search;clipboard;snippets;raycast;"
+      }
+    },
+    "deb": {
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libuuid1",
+        "libsecret-1-0",
+        "libnotify-bin"
+      ],
+      "recommends": [
+        "xdotool"
+      ],
+      "afterInstall": "packaging/after-install.sh",
+      "afterRemove": "packaging/after-remove.sh"
+    },
+    "extraResources": [
+      {
+        "from": "gnome-extension",
+        "to": "gnome-extension"
+      }
+    ],
+    "electronDist": "node_modules/electron/dist",
+    "electronVersion": "33.2.1"
+  }
+}

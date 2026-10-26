@@ -1,0 +1,7 @@
+{
+  "uuid": "beam-windows@virallens.com",
+  "name": "Beam Window Management",
+  "description": "Lets the Beam launcher move and resize windows (halves, quarters, thirds, center, displays). Required for Beam's window commands on Wayland.",
+  "shell-version": ["45", "46", "47", "48"],
+  "version": 1
+}
