@@ -77,7 +77,10 @@
         "xdotool"
       ],
       "afterInstall": "packaging/after-install.sh",
-      "afterRemove": "packaging/after-remove.sh"
+      "afterRemove": "packaging/after-remove.sh",
+      "fpm": [
+        "--before-install=packaging/before-install.sh"
+      ]
     },
     "extraResources": [
       {
