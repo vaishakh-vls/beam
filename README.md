@@ -21,7 +21,7 @@ Log out and back in once after the first install so GNOME loads the window-manag
 | `Super+Space` | Open / close Beam |
 | `Super+V` | Clipboard history |
 | `Ctrl+Super+←` / `→` | Left / right half |
-| `Ctrl+Super+↑` | Maximize |
+| `Ctrl+Super+Enter` | Maximize |
 | `Ctrl+Super+↓` | Reasonable size |
 | `Ctrl+Super+C` | Center |
 | `Ctrl+Super+Backspace` | Restore |

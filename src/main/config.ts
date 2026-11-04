@@ -42,7 +42,7 @@ const DEFAULT_CONFIG: BeamConfig = {
     { keys: "Super+V", ref: "view:clipboard" },
     { keys: "Ctrl+Super+Left", ref: "window:left-half" },
     { keys: "Ctrl+Super+Right", ref: "window:right-half" },
-    { keys: "Ctrl+Super+Up", ref: "window:maximize" },
+    { keys: "Ctrl+Super+Enter", ref: "window:maximize" },
     { keys: "Ctrl+Super+Down", ref: "window:reasonable-size" },
     { keys: "Ctrl+Super+C", ref: "window:center" },
     { keys: "Ctrl+Super+Backspace", ref: "window:restore" },
