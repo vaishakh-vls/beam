@@ -43,7 +43,8 @@ export function App() {
   const [stack, setStack] = useState<Screen[]>([ROOT]);
   const [query, setQuery] = useState("");
   const [response, setResponse] = useState<SearchResponse>(EMPTY);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // By position, not id: one item can appear in two sections (Recent and Commands).
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [toast, setToast] = useState<{ text: string; error: boolean } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -53,18 +54,15 @@ export function App() {
   const screen = stack[stack.length - 1];
   const view = screen.kind === "list" ? screen.view : null;
   const items = useMemo(() => response.sections.flatMap((s) => s.items), [response]);
-  const selected = items.find((i) => i.id === selectedId) ?? items[0] ?? null;
+  const selected = items[selectedIndex] ?? items[0] ?? null;
 
   const refresh = useCallback(async (q: string, v: View, keepSelection = false) => {
     const seq = ++searchSeq.current;
     const result = await window.beam.search(q, v);
     if (seq !== searchSeq.current) return;
     setResponse(result);
-    setSelectedId((current) => {
-      const all = result.sections.flatMap((s) => s.items);
-      if (keepSelection && all.some((i) => i.id === current)) return current;
-      return all[0]?.id ?? null;
-    });
+    const count = result.sections.reduce((n, s) => n + s.items.length, 0);
+    setSelectedIndex((current) => (keepSelection ? Math.min(current, Math.max(count - 1, 0)) : 0));
   }, []);
 
   useEffect(() => {
@@ -151,9 +149,7 @@ export function App() {
 
   function moveSelection(delta: number) {
     if (!items.length) return;
-    const index = Math.max(0, items.findIndex((i) => i.id === selected?.id));
-    const next = Math.min(Math.max(index + delta, 0), items.length - 1);
-    setSelectedId(items[next].id);
+    setSelectedIndex((index) => Math.min(Math.max(index + delta, 0), items.length - 1));
   }
 
   function onKeyDown(event: React.KeyboardEvent) {
@@ -234,9 +230,9 @@ export function App() {
           <div className={response.info.preview ? "split" : "single"}>
             <ResultList
               sections={response.sections}
-              selectedId={selected?.id ?? null}
+              selectedIndex={selectedIndex}
               grid={response.info.grid}
-              onSelect={(item) => setSelectedId(item.id)}
+              onSelect={setSelectedIndex}
               onRun={(item) => void runAction(item, item.actions[0])}
             />
             {response.info.preview && (

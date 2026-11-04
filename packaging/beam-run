@@ -1,0 +1,11 @@
+#!/bin/sh
+# What GNOME hotkeys run: `beam-run --run=<ref>`. Hands the ref to the running
+# Beam over its socket, which takes milliseconds, instead of starting a second
+# Electron process (about 0.6 s). Starts Beam with the ref when it isn't running.
+
+ref="${1#--run=}"
+sock="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/beam.sock"
+if [ -S "$sock" ] && printf '%s\n' "$ref" | nc -NU "$sock" 2>/dev/null; then
+  exit 0
+fi
+exec "$(dirname "$(readlink -f "$0")")/../beam" --run="$ref"

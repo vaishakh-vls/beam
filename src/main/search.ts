@@ -7,6 +7,7 @@ import { appEntries } from "./providers/apps";
 import { calculatorEntry } from "./providers/calculator";
 import { clipboardEntries } from "./providers/clipboard";
 import { commandEntries } from "./providers/commands";
+import { currencyEntry } from "./providers/currency";
 import { emojiSections } from "./providers/emoji";
 import { searchFiles } from "./providers/files";
 import { quicklinkEntries, rootQuicklinkEntries } from "./providers/quicklinks";
@@ -142,6 +143,8 @@ function rootSearch(query: string, ctx: SearchContext): Section[] {
   const sections: Section[] = [];
   const calc = calculatorEntry(q, ctx.hide);
   if (calc) sections.push({ title: "Calculator", entries: [calc] });
+  const money = currencyEntry(q, ctx.hide);
+  if (money) sections.push({ title: "Currency", entries: [money] });
   sections.push({
     title: "Results",
     entries: ranked.slice(0, 12).map(({ entry }) => withCommandActions(entry, ctx)),

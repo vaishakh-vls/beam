@@ -10,12 +10,14 @@ import { ICON_SCHEME, iconFileFromUrl } from "./icons";
 import { syncKeybinds } from "./keybinds";
 import { launchApp, loadApps } from "./providers/apps";
 import { startClipboardWatcher } from "./providers/clipboard";
+import { refreshRates } from "./providers/currency";
 import { rebuildFileIndex, startFileIndexer } from "./providers/files";
 import { runQuicklink } from "./providers/quicklinks";
 import { runScriptByName } from "./providers/scripts";
 import { runSnippet } from "./providers/snippets";
 import { applyWindowAction, ensureWindowExtension } from "./providers/windows";
 import { launchableEntries, runAction, search, type SearchContext } from "./search";
+import { closeSocket, listenForRefs, socketPath } from "./socket";
 import { notify } from "./system";
 import { recordUse } from "./usage";
 import type { RunResult, ShowPayload, View } from "../shared/types";
@@ -33,9 +35,11 @@ protocol.registerSchemesAsPrivileged([
   { scheme: ICON_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
-/** The command GNOME hotkeys run to reach this instance. */
+/** The command GNOME hotkeys run to reach this instance: the socket client when packaged. */
 function launcherCommand(): string[] {
-  return isDev ? [process.execPath, app.getAppPath()] : [process.execPath];
+  if (isDev) return [process.execPath, app.getAppPath()];
+  const client = path.join(process.resourcesPath, "beam-run");
+  return socketPath() && fs.existsSync(client) ? [client] : [process.execPath];
 }
 
 function createWindow(): BrowserWindow {
@@ -205,6 +209,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(async () => {
+    listenForRefs((ref) => void runRef(ref));
     protocol.handle(ICON_SCHEME, (request) => {
       const file = iconFileFromUrl(request.url);
       if (!file) return new Response("Not found", { status: 404 });
@@ -219,6 +224,7 @@ if (!app.requestSingleInstanceLock()) {
     ensureAutostart();
     startClipboardWatcher();
     startFileIndexer();
+    void refreshRates();
     loadApps();
     await registerHotkeys();
     if (!testMode) void ensureWindowExtension();
@@ -228,6 +234,8 @@ if (!app.requestSingleInstanceLock()) {
     if (ref) void runRef(ref);
     else if (!process.argv.includes("--hidden")) showWindow({ view: "root" });
   });
+
+  app.on("will-quit", closeSocket);
 
   // Beam lives in the background; closing the window must not quit it.
   app.on("window-all-closed", () => undefined);

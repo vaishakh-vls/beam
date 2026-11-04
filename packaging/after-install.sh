@@ -13,6 +13,7 @@ else
 fi
 
 chmod 0755 '/opt/Beam/chrome-sandbox' || true
+chmod 0755 '/opt/Beam/resources/beam-run' || true
 
 if [ -d /etc/apparmor.d ]; then
     cat > /etc/apparmor.d/beam <<'EOF'

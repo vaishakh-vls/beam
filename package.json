@@ -70,7 +70,8 @@
         "libatspi2.0-0",
         "libuuid1",
         "libsecret-1-0",
-        "libnotify-bin"
+        "libnotify-bin",
+        "netcat-openbsd"
       ],
       "recommends": [
         "xdotool"
@@ -80,8 +81,8 @@
     },
     "extraResources": [
       {
-        "from": "gnome-extension",
-        "to": "gnome-extension"
+        "from": "packaging/beam-run",
+        "to": "beam-run"
       }
     ],
     "electronDist": "node_modules/electron/dist",

@@ -32,6 +32,8 @@ export interface BeamConfig {
   /** Skip API tokens, private keys and similar when recording clipboard history. */
   clipboardIgnoreSecrets: boolean;
   webSearchUrl: string;
+  /** Currency that "10 usd" converts to: an ISO code such as "INR", or "auto" for the region's. */
+  currency: string;
 }
 
 const DEFAULT_CONFIG: BeamConfig = {
@@ -51,6 +53,7 @@ const DEFAULT_CONFIG: BeamConfig = {
   clipboardHistorySize: 300,
   clipboardIgnoreSecrets: true,
   webSearchUrl: "https://www.google.com/search?q=%s",
+  currency: "auto",
 };
 
 const EXAMPLE_SCRIPT = `#!/bin/bash

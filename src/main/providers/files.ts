@@ -21,6 +21,8 @@ const REFRESH_MS = 10 * 60 * 1000;
 
 interface FileRecord {
   name: string;
+  /** Lowercased once at index time; matching runs on every keystroke. */
+  lower: string;
   path: string;
   isDir: boolean;
 }
@@ -41,7 +43,7 @@ async function walk(dir: string, depth: number, out: FileRecord[]): Promise<void
     if (entry.name.startsWith(".")) continue;
     const full = path.join(dir, entry.name);
     const isDir = entry.isDirectory();
-    out.push({ name: entry.name, path: full, isDir });
+    out.push({ name: entry.name, lower: entry.name.toLowerCase(), path: full, isDir });
     if (isDir && depth > 0 && !SKIP_DIRS.has(entry.name)) subdirs.push(full);
     if (out.length >= MAX_ENTRIES) return;
   }
@@ -77,10 +79,13 @@ function displayPath(full: string): string {
 export function searchFiles(query: string, limit: number): Entry[] {
   const q = query.trim();
   if (q.length < 2) return [];
+  const lower = q.toLowerCase();
   const scored: Array<{ record: FileRecord; score: number }> = [];
   for (const record of index) {
+    // Loose subsequence matches on file names are mostly noise, so only
+    // names containing the query are scored.
+    if (!record.lower.includes(lower)) continue;
     const score = fuzzyScore(q, record.name);
-    // Loose subsequence matches on file names are mostly noise.
     if (score >= 300) scored.push({ record, score });
   }
   scored.sort((a, b) => b.score - a.score || a.record.path.length - b.record.path.length);
