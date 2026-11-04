@@ -1,5 +1,6 @@
 import { globalShortcut } from "electron";
 import { toGnomeAccelerator } from "./accelerators";
+import { runArgs } from "./cli";
 import { config, type Keybind } from "./config";
 import { isGnome, runCapture } from "./system";
 
@@ -18,7 +19,7 @@ function formatStringList(items: string[]): string {
 
 /** A command line GNOME can run; only arguments with spaces are quoted. */
 function launchCommand(launcher: string[], ref: string): string {
-  return [...launcher, "--run", ref]
+  return [...launcher, ...runArgs(ref)]
     .map((part) => (/[\s"']/.test(part) ? `"${part.replace(/(["\\])/g, "\\$1")}"` : part))
     .join(" ");
 }

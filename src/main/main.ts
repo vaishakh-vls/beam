@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, ipcMain, Menu, net, protocol, screen, Tray } from "electron";
+import { parseRunArg } from "./cli";
 import { loadConfig } from "./config";
 import { submitForm } from "./forms";
 import { ICON_SCHEME, iconFileFromUrl } from "./icons";
@@ -35,11 +36,6 @@ protocol.registerSchemesAsPrivileged([
 /** The command GNOME hotkeys run to reach this instance. */
 function launcherCommand(): string[] {
   return isDev ? [process.execPath, app.getAppPath()] : [process.execPath];
-}
-
-function parseRunArg(argv: string[]): string | null {
-  const index = argv.indexOf("--run");
-  return index >= 0 && argv[index + 1] ? argv[index + 1] : null;
 }
 
 function createWindow(): BrowserWindow {
