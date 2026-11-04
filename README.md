@@ -39,6 +39,7 @@ Any command can get its own hotkey or alias from its action panel (`Ctrl+K`). Sh
 - **Quicklinks** to URLs with `{query}`
 - **Emoji picker**
 - **Calculator and unit conversion** (mathjs)
+- **Currency conversion**: `10 usd`, `$10 to eur`, `2 lakh inr in usd`. Daily rates from open.er-api.com. Converts to `"currency"` in the config, or with `"auto"` to your region's currency (from the time zone).
 - **Script commands** in Raycast's `@raycast.*` format, in `~/.config/beam/scripts`
 - **Window management**: 24 layouts (halves, quarters, thirds, displays...) via a bundled GNOME Shell extension (`gnome-extension/`)
 - **Web search fallbacks**
