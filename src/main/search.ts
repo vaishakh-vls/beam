@@ -1,17 +1,29 @@
 import { config, saveConfig } from "./config";
-import { toResultItem, type Entry, type EntryAction } from "./entry";
+import { toResultItem, type Entry, type EntryAction, type Section, type ViewProvider } from "./entry";
 import { showForm } from "./forms";
 import { bestScore } from "./fuzzy";
 import { hotkeyFor, setHotkey } from "./keybinds";
 import { appEntries } from "./providers/apps";
+import { audioCommands, audioView, volumeEntry } from "./providers/audio";
+import { bluetoothCommands, bluetoothView } from "./providers/bluetooth";
+import { caffeinateCommands, caffeinateView } from "./providers/caffeinate";
 import { calculatorEntry } from "./providers/calculator";
+import { chromeCommands, chromeView } from "./providers/chrome";
 import { clipboardEntries } from "./providers/clipboard";
+import { colorCommands, colorEntry, colorView } from "./providers/color";
 import { commandEntries } from "./providers/commands";
 import { currencyEntry } from "./providers/currency";
 import { emojiSections } from "./providers/emoji";
+import { fanCommands, fanView } from "./providers/fans";
 import { searchFiles } from "./providers/files";
+import { gifCommands, gifView } from "./providers/gifs";
+import { keyboardCommands, keyboardView } from "./providers/keyboard";
+import { processCommands, processView } from "./providers/processes";
 import { quicklinkEntries, rootQuicklinkEntries } from "./providers/quicklinks";
 import { scriptEntries } from "./providers/scripts";
+import { speedtestCommands, speedtestView } from "./providers/speedtest";
+import { spotifyCommands, spotifyView } from "./providers/spotify";
+import { wifiCommands, wifiView } from "./providers/wifi";
 import { windowEntries } from "./providers/windows";
 import { createSnippetAction, snippetEntries, snippetKeywordMatches } from "./providers/snippets";
 import { openUrl } from "./system";
@@ -25,18 +37,36 @@ export interface SearchContext {
   hotkeysChanged: () => void;
 }
 
-const VIEW_INFO: Record<View, ViewInfo> = {
-  root: { placeholder: "Search for apps and commands…", preview: false, grid: false },
-  clipboard: { placeholder: "Type to filter clipboard history…", preview: true, grid: false },
-  snippets: { placeholder: "Search snippets…", preview: true, grid: false },
-  quicklinks: { placeholder: "Search quicklinks…", preview: false, grid: false },
-  emoji: { placeholder: "Search emoji and symbols…", preview: false, grid: true },
-  scripts: { placeholder: "Search script commands…", preview: false, grid: false },
-  windows: { placeholder: "Move the active window…", preview: false, grid: false },
+const VIEW_INFO: Partial<Record<View, ViewInfo>> = {
+  root: { title: "", placeholder: "Search for apps and commands…", preview: false, grid: false },
+  clipboard: { title: "Clipboard History", placeholder: "Type to filter clipboard history…", preview: true, grid: false },
+  snippets: { title: "Snippets", placeholder: "Search snippets…", preview: true, grid: false },
+  quicklinks: { title: "Quicklinks", placeholder: "Search quicklinks…", preview: false, grid: false },
+  emoji: { title: "Emoji & Symbols", placeholder: "Search emoji and symbols…", preview: false, grid: true },
+  scripts: { title: "Script Commands", placeholder: "Search script commands…", preview: false, grid: false },
+  windows: { title: "Window Management", placeholder: "Move the active window…", preview: false, grid: false },
+};
+
+/** Views that live in their own provider module. */
+const VIEWS: Partial<Record<View, ViewProvider>> = {
+  processes: processView,
+  fans: fanView,
+  media: spotifyView,
+  chrome: chromeView,
+  gifs: gifView,
+  wifi: wifiView,
+  bluetooth: bluetoothView,
+  audio: audioView,
+  colors: colorView,
+  caffeinate: caffeinateView,
+  speedtest: speedtestView,
+  "clean-keyboard": keyboardView,
 };
 
 /** Entries from the latest search, so run() can find the clicked item. */
 let registry = new Map<string, Entry>();
+/** Views can be slow (nmcli, bluetoothctl); only the newest search may replace the registry. */
+let searchSeq = 0;
 
 export function runAction(itemId: string, actionId: string): RunResult | Promise<RunResult> {
   const entry = registry.get(itemId);
@@ -49,6 +79,18 @@ export function runAction(itemId: string, actionId: string): RunResult | Promise
 export function launchableEntries(ctx: SearchContext): Entry[] {
   return [
     ...commandEntries(ctx.reload),
+    ...processCommands(),
+    ...fanCommands(),
+    ...spotifyCommands(ctx.hide),
+    ...chromeCommands(ctx.hide),
+    ...gifCommands(ctx.hide),
+    ...wifiCommands(ctx.hide),
+    ...bluetoothCommands(ctx.hide),
+    ...audioCommands(ctx.hide),
+    ...colorCommands(ctx.hide),
+    ...caffeinateCommands(ctx.hide),
+    ...speedtestCommands(ctx.hide),
+    ...keyboardCommands(ctx.hide),
     ...windowEntries(ctx.hide),
     ...appEntries(),
     ...scriptEntries(),
@@ -56,19 +98,25 @@ export function launchableEntries(ctx: SearchContext): Entry[] {
   ];
 }
 
-export function search(query: string, view: View, ctx: SearchContext): SearchResponse {
-  const sections = view === "root" ? rootSearch(query, ctx) : viewSearch(query, view, ctx);
-  registry = new Map();
-  for (const section of sections) for (const entry of section.entries) registry.set(entry.id, entry);
+export async function search(query: string, view: View, ctx: SearchContext): Promise<SearchResponse> {
+  const seq = ++searchSeq;
+  const provider = VIEWS[view];
+  const sections = view === "root"
+    ? rootSearch(query, ctx)
+    : provider
+      ? await provider.sections(query, ctx.hide)
+      : viewSearch(query, view, ctx);
+  if (seq === searchSeq) {
+    registry = new Map();
+    for (const section of sections) for (const entry of section.entries) registry.set(entry.id, entry);
+  }
   return {
-    info: VIEW_INFO[view],
+    info: provider?.info ?? VIEW_INFO[view] ?? VIEW_INFO.root!,
     sections: sections
       .filter((s) => s.entries.length)
       .map((s) => ({ title: s.title, items: s.entries.map(toResultItem) })),
   };
 }
-
-type Section = { title: string; entries: Entry[] };
 
 function viewSearch(query: string, view: View, ctx: SearchContext): Section[] {
   switch (view) {
@@ -145,6 +193,10 @@ function rootSearch(query: string, ctx: SearchContext): Section[] {
   if (calc) sections.push({ title: "Calculator", entries: [calc] });
   const money = currencyEntry(q, ctx.hide);
   if (money) sections.push({ title: "Currency", entries: [money] });
+  const volume = volumeEntry(q);
+  if (volume) sections.push({ title: "Volume", entries: [volume] });
+  const color = colorEntry(q);
+  if (color) sections.push({ title: "Color", entries: [color] });
   sections.push({
     title: "Results",
     entries: ranked.slice(0, 12).map(({ entry }) => withCommandActions(entry, ctx)),

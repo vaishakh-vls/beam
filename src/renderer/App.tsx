@@ -26,17 +26,7 @@ type Screen =
   | { kind: "form"; form: FormSpec }
   | { kind: "output"; title: string; text: string };
 
-const VIEW_TITLES: Record<View, string> = {
-  root: "",
-  clipboard: "Clipboard History",
-  snippets: "Snippets",
-  quicklinks: "Quicklinks",
-  emoji: "Emoji & Symbols",
-  scripts: "Script Commands",
-  windows: "Window Management",
-};
-
-const EMPTY: SearchResponse = { sections: [], info: { placeholder: "", preview: false, grid: false } };
+const EMPTY: SearchResponse = { sections: [], info: { title: "", placeholder: "", preview: false, grid: false } };
 const ROOT: Screen = { kind: "list", view: "root" };
 
 export function App() {
@@ -55,19 +45,39 @@ export function App() {
   const view = screen.kind === "list" ? screen.view : null;
   const items = useMemo(() => response.sections.flatMap((s) => s.items), [response]);
   const selected = items[selectedIndex] ?? items[0] ?? null;
+  const selectedId = useRef<string | undefined>(undefined);
+  selectedId.current = selected?.id;
 
   const refresh = useCallback(async (q: string, v: View, keepSelection = false) => {
     const seq = ++searchSeq.current;
     const result = await window.beam.search(q, v);
     if (seq !== searchSeq.current) return;
     setResponse(result);
-    const count = result.sections.reduce((n, s) => n + s.items.length, 0);
-    setSelectedIndex((current) => (keepSelection ? Math.min(current, Math.max(count - 1, 0)) : 0));
+    const next = result.sections.flatMap((s) => s.items);
+    const id = selectedId.current;
+    setSelectedIndex((current) => {
+      if (!keepSelection) return 0;
+      // Live views re-sort (processes by CPU): stay on the same item, not the same row.
+      if (next[current]?.id === id) return current;
+      const moved = next.findIndex((item) => item.id === id);
+      return moved >= 0 ? moved : Math.min(current, Math.max(next.length - 1, 0));
+    });
   }, []);
 
   useEffect(() => {
     if (view) void refresh(query, view);
   }, [query, view, refresh]);
+
+  // Live views (processes, fans, speed test) refresh themselves while visible,
+  // but not while the action panel is open, so its target can't change underneath it.
+  const refreshMs = screen.kind === "list" ? response.info.refreshMs : undefined;
+  useEffect(() => {
+    if (!view || !refreshMs || actionsOpen) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refresh(query, view, true);
+    }, refreshMs);
+    return () => window.clearInterval(timer);
+  }, [view, query, refreshMs, actionsOpen, refresh]);
 
   const showToast = useCallback((text: string, error = false) => {
     setToast({ text, error });
@@ -198,7 +208,7 @@ export function App() {
   }
 
   const title =
-    screen.kind === "form" ? screen.form.title : screen.kind === "output" ? screen.title : VIEW_TITLES[screen.view];
+    screen.kind === "form" ? screen.form.title : screen.kind === "output" ? screen.title : response.info.title;
   const primary = screen.kind === "list" ? selected?.actions[0] : undefined;
 
   return (
@@ -236,7 +246,12 @@ export function App() {
               onRun={(item) => void runAction(item, item.actions[0])}
             />
             {response.info.preview && (
-              <pre className="preview">{selected?.preview ?? ""}</pre>
+              <div className="preview">
+                {selected?.previewImage && (
+                  <img className="preview-image" src={selected.previewImage} alt="" draggable={false} />
+                )}
+                <pre className="preview-text">{selected?.preview ?? ""}</pre>
+              </div>
             )}
           </div>
         )}

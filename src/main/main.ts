@@ -9,7 +9,9 @@ import { submitForm } from "./forms";
 import { ICON_SCHEME, iconFileFromUrl } from "./icons";
 import { syncKeybinds } from "./keybinds";
 import { launchApp, loadApps } from "./providers/apps";
+import { stopCaffeinate } from "./providers/caffeinate";
 import { startClipboardWatcher } from "./providers/clipboard";
+import { startFanGuard } from "./providers/fans";
 import { refreshRates } from "./providers/currency";
 import { rebuildFileIndex, startFileIndexer } from "./providers/files";
 import { runQuicklink } from "./providers/quicklinks";
@@ -225,6 +227,7 @@ if (!app.requestSingleInstanceLock()) {
     startClipboardWatcher();
     startFileIndexer();
     void refreshRates();
+    startFanGuard();
     loadApps();
     await registerHotkeys();
     if (!testMode) void ensureWindowExtension();
@@ -235,7 +238,10 @@ if (!app.requestSingleInstanceLock()) {
     else if (!process.argv.includes("--hidden")) showWindow({ view: "root" });
   });
 
-  app.on("will-quit", closeSocket);
+  app.on("will-quit", () => {
+    closeSocket();
+    stopCaffeinate();
+  });
 
   // Beam lives in the background; closing the window must not quit it.
   app.on("window-all-closed", () => undefined);

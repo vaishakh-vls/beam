@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+# Picks a color on screen through the xdg-desktop-portal, the only way an app
+# may read screen pixels on Wayland. Beam runs it as `python3 -I beam-pick-color`.
+#
+# Prints the color as "r g b" floats (0-1) and exits 0. Exits 3 when the user
+# cancels with Esc and 4 when the portal fails.
+
+import os
+import sys
+
+import gi
+
+gi.require_version("Gio", "2.0")
+gi.require_version("GLib", "2.0")
+from gi.repository import Gio, GLib  # noqa: E402
+
+PORTAL = "org.freedesktop.portal.Desktop"
+PORTAL_PATH = "/org/freedesktop/portal/desktop"
+REQUEST = "org.freedesktop.portal.Request"
+TIMEOUT_SECONDS = 300
+CANCELLED = 3
+FAILED = 4
+
+
+def main() -> int:
+    try:
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+    except GLib.Error as error:
+        print(f"no session bus: {error.message}", file=sys.stderr)
+        return FAILED
+
+    # The portal answers with a Response signal on a request object whose
+    # path follows from our bus name and this token, so subscribe before
+    # calling to never miss a fast answer.
+    token = f"beam_{os.getpid()}"
+    sender = bus.get_unique_name().lstrip(":").replace(".", "_")
+    request_path = f"{PORTAL_PATH}/request/{sender}/{token}"
+
+    loop = GLib.MainLoop()
+    outcome = {"code": None, "color": None}
+
+    def on_response(_bus, _sender, _path, _interface, _signal, params, *_args):
+        code, results = params.unpack()
+        outcome["code"] = code
+        outcome["color"] = results.get("color")
+        loop.quit()
+
+    def subscribe(path):
+        return bus.signal_subscribe(
+            PORTAL, REQUEST, "Response", path, None, Gio.DBusSignalFlags.NONE, on_response
+        )
+
+    subscription = subscribe(request_path)
+    try:
+        reply = bus.call_sync(
+            PORTAL,
+            PORTAL_PATH,
+            "org.freedesktop.portal.Screenshot",
+            "PickColor",
+            GLib.Variant("(sa{sv})", ("", {"handle_token": GLib.Variant("s", token)})),
+            GLib.VariantType("(o)"),
+            Gio.DBusCallFlags.NONE,
+            -1,
+            None,
+        )
+    except GLib.Error as error:
+        print(f"PickColor failed: {error.message}", file=sys.stderr)
+        return FAILED
+
+    (handle,) = reply.unpack()
+    if handle != request_path:
+        # Portals before version 0.9 choose their own request path.
+        bus.signal_unsubscribe(subscription)
+        subscription = subscribe(handle)
+
+    def on_timeout():
+        try:
+            bus.call_sync(PORTAL, handle, REQUEST, "Close", None, None, Gio.DBusCallFlags.NONE, -1, None)
+        except GLib.Error:
+            pass
+        loop.quit()
+        return GLib.SOURCE_REMOVE
+
+    GLib.timeout_add_seconds(TIMEOUT_SECONDS, on_timeout)
+    loop.run()
+    bus.signal_unsubscribe(subscription)
+
+    if outcome["code"] == 1:
+        print("cancelled", file=sys.stderr)
+        return CANCELLED
+    if outcome["code"] != 0 or not outcome["color"]:
+        reason = "timed out" if outcome["code"] is None else f"portal response {outcome['code']}"
+        print(f"no color picked: {reason}", file=sys.stderr)
+        return FAILED
+    r, g, b = outcome["color"]
+    print(f"{r:.6f} {g:.6f} {b:.6f}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -19,6 +19,8 @@ export interface ResultItem {
   accessory?: string;
   /** Full text for the preview pane (clipboard, snippets). */
   preview?: string;
+  /** Image shown in the preview pane above the text: a GIF, a color swatch. */
+  previewImage?: string;
   /** First action runs on Enter, second on Ctrl+Enter; all appear in Ctrl+K. */
   actions: ActionDef[];
 }
@@ -35,14 +37,30 @@ export type View =
   | "quicklinks"
   | "emoji"
   | "scripts"
-  | "windows";
+  | "windows"
+  | "processes"
+  | "fans"
+  | "colors"
+  | "media"
+  | "chrome"
+  | "speedtest"
+  | "gifs"
+  | "audio"
+  | "bluetooth"
+  | "wifi"
+  | "caffeinate"
+  | "clean-keyboard";
 
 export interface ViewInfo {
+  /** Shown as a badge beside the search field. */
+  title: string;
   placeholder: string;
   /** Show a preview pane beside the list. */
   preview: boolean;
   /** Render items as a grid of large icons (emoji picker). */
   grid: boolean;
+  /** Re-run the search this often while the view is open, for live values. */
+  refreshMs?: number;
 }
 
 export interface SearchResponse {

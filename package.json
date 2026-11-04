@@ -71,7 +71,9 @@
         "libuuid1",
         "libsecret-1-0",
         "libnotify-bin",
-        "netcat-openbsd"
+        "netcat-openbsd",
+        "playerctl",
+        "python3"
       ],
       "recommends": [
         "xdotool"
@@ -86,6 +88,22 @@
       {
         "from": "packaging/beam-run",
         "to": "beam-run"
+      },
+      {
+        "from": "packaging/beam-fan",
+        "to": "beam-fan"
+      },
+      {
+        "from": "packaging/com.virallens.beam.fan.policy",
+        "to": "com.virallens.beam.fan.policy"
+      },
+      {
+        "from": "packaging/beam-pick-color",
+        "to": "beam-pick-color"
+      },
+      {
+        "from": "gnome-extension",
+        "to": "gnome-extension"
       }
     ],
     "electronDist": "node_modules/electron/dist",

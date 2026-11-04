@@ -1,4 +1,4 @@
-import type { ActionDef, ResultItem, RunResult } from "../shared/types";
+import type { ActionDef, ResultItem, RunResult, ViewInfo } from "../shared/types";
 
 export interface EntryAction extends ActionDef {
   run: () => RunResult | Promise<RunResult>;
@@ -12,6 +12,7 @@ export interface Entry {
   icon?: string;
   accessory?: string;
   preview?: string;
+  previewImage?: string;
   /** Extra words that should match in search but are not displayed. */
   keywords?: string[];
   /** Set for launchable commands, enabling aliases, hotkeys and ranking. */
@@ -27,6 +28,7 @@ export function toResultItem(entry: Entry): ResultItem {
     icon: entry.icon,
     accessory: entry.accessory,
     preview: entry.preview,
+    previewImage: entry.previewImage,
     actions: entry.actions.map(({ id, title, shortcut, danger }) => ({
       id,
       title,
@@ -34,6 +36,18 @@ export function toResultItem(entry: Entry): ResultItem {
       danger,
     })),
   };
+}
+
+export interface Section {
+  title: string;
+  entries: Entry[];
+}
+
+/** A view of its own, such as Wi-Fi or Processes: what to show for each query. */
+export interface ViewProvider {
+  info: ViewInfo;
+  /** `hide` closes Beam, for actions that hand over to another window. */
+  sections(query: string, hide: () => void): Section[] | Promise<Section[]>;
 }
 
 export const HIDE: RunResult = { type: "hide" };

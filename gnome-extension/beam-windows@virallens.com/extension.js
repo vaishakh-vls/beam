@@ -1,12 +1,22 @@
-// Exposes window management to Beam over D-Bus. GNOME on Wayland only lets
-// the shell itself move other apps' windows, so Beam asks this extension.
+// Exposes window management and keyboard locking to Beam over D-Bus. GNOME
+// on Wayland only lets the shell itself move other apps' windows or swallow
+// shell shortcuts, so Beam asks this extension.
 //
 //   gdbus call --session --dest org.virallens.BeamWindows \
 //     --object-path /org/virallens/BeamWindows \
 //     --method org.virallens.BeamWindows.Apply left-half
+//
+//   gdbus call --session --dest org.virallens.BeamWindows \
+//     --object-path /org/virallens/BeamWindows \
+//     --method org.virallens.BeamWindows.LockKeyboard 30
 
+import Clutter from "gi://Clutter";
 import Gio from "gi://Gio";
+import GLib from "gi://GLib";
 import Meta from "gi://Meta";
+import Shell from "gi://Shell";
+import St from "gi://St";
+import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 
 const BUS_NAME = "org.virallens.BeamWindows";
@@ -19,8 +29,16 @@ const INTERFACE_XML = `
       <arg type="b" direction="out" name="ok"/>
       <arg type="s" direction="out" name="message"/>
     </method>
+    <method name="LockKeyboard">
+      <arg type="u" direction="in" name="seconds"/>
+      <arg type="b" direction="out" name="ok"/>
+      <arg type="s" direction="out" name="message"/>
+    </method>
   </interface>
 </node>`;
+
+/** A keyboard lock never outlasts this, whatever the caller asks for. */
+const MAX_LOCK_SECONDS = 300;
 
 /** Fractions of the work area: [x, y, width, height]. */
 const LAYOUTS = {
@@ -48,6 +66,7 @@ function isBeam(win) {
 
 export default class BeamWindowsExtension extends Extension {
   enable() {
+    this._lock = null;
     this._lastWindow = null;
     this._previous = new WeakMap();
     this._focusId = global.display.connect("notify::focus-window", () => {
@@ -62,6 +81,8 @@ export default class BeamWindowsExtension extends Extension {
   }
 
   disable() {
+    // Also runs when the screen locks, so a lock can never outlive the session.
+    this._unlockKeyboard();
     if (this._focusId) global.display.disconnect(this._focusId);
     this._dbus?.unexport();
     if (this._ownerId) Gio.bus_unown_name(this._ownerId);
@@ -79,6 +100,139 @@ export default class BeamWindowsExtension extends Extension {
     } catch (error) {
       return [false, String(error)];
     }
+  }
+
+  /**
+   * D-Bus method: covers every monitor and swallows all keys, shell
+   * shortcuts included, for `seconds` (at most 300) so the keyboard can be
+   * wiped. The mouse can still click Unlock. Returns [ok, message] at once.
+   */
+  LockKeyboard(seconds) {
+    try {
+      return this._lockKeyboard(seconds);
+    } catch (error) {
+      this._unlockKeyboard();
+      return [false, String(error)];
+    }
+  }
+
+  _lockKeyboard(seconds) {
+    if (this._lock) return [false, "The keyboard is already locked"];
+    if (Main.sessionMode.isLocked) return [false, "The screen is locked"];
+    const total = Math.min(MAX_LOCK_SECONDS, Math.floor(seconds));
+    if (!(total >= 1)) return [false, "Lock for at least one second"];
+
+    const overlay = new St.Widget({
+      name: "beamKeyboardLock",
+      reactive: true,
+      constraints: new Clutter.BindConstraint({ source: global.stage, coordinate: Clutter.BindCoordinate.ALL }),
+    });
+    const countdowns = [];
+    for (const monitor of Main.layoutManager.monitors) {
+      const { pane, countdown } = this._lockPane(monitor);
+      overlay.add_child(pane);
+      countdowns.push(countdown);
+    }
+    // Keys stop here, before St's focus handling could reach the button;
+    // pointer events still go through so Unlock can be clicked.
+    overlay.connect("captured-event", (_actor, event) => {
+      const type = event.type();
+      return type === Clutter.EventType.KEY_PRESS || type === Clutter.EventType.KEY_RELEASE
+        ? Clutter.EVENT_STOP
+        : Clutter.EVENT_PROPAGATE;
+    });
+    // Registered before the grab so any failure below is fully undone.
+    const lock = {
+      overlay,
+      grab: null,
+      countdowns,
+      endTime: GLib.get_monotonic_time() + total * 1000000,
+      timerId: 0,
+    };
+    this._lock = lock;
+    Main.uiGroup.add_child(overlay);
+
+    // Action mode NONE makes the shell's keybinding filter reject every
+    // shortcut (Super, Alt+Tab, media keys, workspace and VT switching).
+    lock.grab = Main.pushModal(overlay, { actionMode: Shell.ActionMode.NONE });
+    if (lock.grab.get_seat_state() !== Clutter.GrabState.ALL) {
+      this._unlockKeyboard();
+      return [false, "Another window is holding the keyboard. Try again."];
+    }
+
+    this._updateCountdown();
+    lock.timerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+      if (this._updateCountdown()) return GLib.SOURCE_CONTINUE;
+      lock.timerId = 0;
+      if (this._lock === lock) this._unlockKeyboard();
+      return GLib.SOURCE_REMOVE;
+    });
+    return [true, `Keyboard locked for ${total} seconds`];
+  }
+
+  /** One monitor's dimmed cover with the message, countdown and Unlock button. */
+  _lockPane(monitor) {
+    const pane = new St.Widget({
+      layout_manager: new Clutter.BinLayout(),
+      x: monitor.x,
+      y: monitor.y,
+      width: monitor.width,
+      height: monitor.height,
+      style: "background-color: rgba(0, 0, 0, 0.82);",
+    });
+    const box = new St.BoxLayout({
+      vertical: true,
+      x_align: Clutter.ActorAlign.CENTER,
+      y_align: Clutter.ActorAlign.CENTER,
+      style: "spacing: 18px;",
+    });
+    const label = (text, style) =>
+      new St.Label({ text, x_align: Clutter.ActorAlign.CENTER, style: `color: #ffffff; ${style}` });
+    box.add_child(label("Keyboard locked for cleaning", "font-size: 26pt; font-weight: bold;"));
+    const countdown = label("", 'font-size: 64pt; font-weight: bold; font-feature-settings: "tnum";');
+    box.add_child(countdown);
+    box.add_child(label("Every key is ignored until the timer ends.", "font-size: 13pt; color: rgba(255, 255, 255, 0.7);"));
+    const button = new St.Button({
+      label: "Unlock",
+      style_class: "button",
+      // Not focusable, so no key can ever press it.
+      can_focus: false,
+      reactive: true,
+      track_hover: true,
+      x_align: Clutter.ActorAlign.CENTER,
+      style: "margin-top: 12px; padding: 8px 32px; font-size: 13pt;",
+    });
+    button.connect("clicked", () => this._unlockKeyboard());
+    box.add_child(button);
+    pane.add_child(box);
+    return { pane, countdown };
+  }
+
+  /** Shows the time left; false once it has run out. */
+  _updateCountdown() {
+    const lock = this._lock;
+    if (!lock) return false;
+    const left = Math.ceil((lock.endTime - GLib.get_monotonic_time()) / 1000000);
+    if (left <= 0) return false;
+    const text = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+    for (const countdown of lock.countdowns) countdown.text = text;
+    return true;
+  }
+
+  _unlockKeyboard() {
+    const lock = this._lock;
+    if (!lock) return;
+    this._lock = null;
+    if (lock.timerId) GLib.source_remove(lock.timerId);
+    // Pop before destroying: pushModal's destroy handler would pop it too.
+    if (lock.grab) {
+      try {
+        Main.popModal(lock.grab);
+      } catch (error) {
+        console.warn(`beam: keyboard unlock: ${error}`);
+      }
+    }
+    lock.overlay.destroy();
   }
 
   _target() {

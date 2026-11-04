@@ -266,11 +266,29 @@ body,
   color: var(--text-faint);
 }
 
-.preview,
+.preview {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 14px 16px;
+}
+
+.preview-image {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+}
+
+.output {
+  padding: 14px 16px;
+}
+
+.preview-text,
 .output {
   flex: 1;
   margin: 0;
-  padding: 14px 16px;
   overflow: auto;
   font-family: "JetBrains Mono", "Ubuntu Mono", monospace;
   font-size: 12.5px;

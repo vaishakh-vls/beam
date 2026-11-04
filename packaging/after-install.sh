@@ -14,6 +14,12 @@ fi
 
 chmod 0755 '/opt/Beam/chrome-sandbox' || true
 chmod 0755 '/opt/Beam/resources/beam-run' || true
+chmod 0755 '/opt/Beam/resources/beam-fan' || true
+
+# Fan Control: lets the active user change the fan level through pkexec.
+if [ -d /usr/share/polkit-1/actions ]; then
+    install -m 0644 '/opt/Beam/resources/com.virallens.beam.fan.policy' /usr/share/polkit-1/actions/ || true
+fi
 
 if [ -d /etc/apparmor.d ]; then
     cat > /etc/apparmor.d/beam <<'EOF'

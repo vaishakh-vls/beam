@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!--
+  Lets the person at the computer change the fan level from Beam without a
+  password, like GNOME's power mode switch. Only "beam-fan set" is covered;
+  "beam-fan enable" falls back to pkexec's default, which asks for the
+  admin password.
+-->
+<policyconfig>
+  <vendor>Beam</vendor>
+  <action id="com.virallens.beam.fan.set">
+    <description>Change the laptop fan speed</description>
+    <message>Beam wants to change the fan speed</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/opt/Beam/resources/beam-fan</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">set</annotate>
+  </action>
+</policyconfig>

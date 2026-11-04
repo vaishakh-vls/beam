@@ -34,6 +34,8 @@ export interface BeamConfig {
   webSearchUrl: string;
   /** Currency that "10 usd" converts to: an ISO code such as "INR", or "auto" for the region's. */
   currency: string;
+  /** For GIF search; free from developers.giphy.com. Empty until the user adds one. */
+  giphyApiKey: string;
 }
 
 const DEFAULT_CONFIG: BeamConfig = {
@@ -54,6 +56,7 @@ const DEFAULT_CONFIG: BeamConfig = {
   clipboardIgnoreSecrets: true,
   webSearchUrl: "https://www.google.com/search?q=%s",
   currency: "auto",
+  giphyApiKey: "",
 };
 
 const EXAMPLE_SCRIPT = `#!/bin/bash
