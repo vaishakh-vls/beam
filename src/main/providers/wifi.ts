@@ -1,10 +1,12 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import QRCode from "qrcode";
 import { HIDE, type Entry, type EntryAction, type Section, type ViewProvider } from "../entry";
 import { showForm } from "../forms";
 import { bestScore } from "../fuzzy";
 import { copyText, launchDetached, notify, runCapture } from "../system";
+import { copyConcealed } from "./clipboard";
 import {
   networkKind,
   nmcliError,
@@ -14,15 +16,20 @@ import {
   parseProfileSsids,
   parseRadio,
   parseWifiDevice,
+  parseSecret,
   parseWifiProfiles,
   passwdFileLine,
   passwordProblem,
+  SECRET_FIELDS,
   signalBars,
+  lastUsedText,
+  wifiQrText,
   type NetworkKind,
   type Radio,
   type WifiDevice,
   type WifiNetwork,
   type WifiProfile,
+  type WifiSecret,
 } from "../wifi";
 import type { RunResult } from "../../shared/types";
 
@@ -264,6 +271,48 @@ async function forget(ssid: string, profiles: WifiProfile[]): Promise<RunResult>
   return { type: "stay", toast: `Forgot ${ssid}` };
 }
 
+/** The newest profile's saved password. NetworkManager gives the session's user its secrets without a prompt. */
+async function readSecret(ssid: string, profiles: WifiProfile[]): Promise<WifiSecret | string> {
+  const { code, stdout, stderr } = await nmcli([
+    "-s", "-t", "-e", "no", "-f", SECRET_FIELDS, "connection", "show", "uuid", profiles[0].uuid,
+  ]);
+  if (code !== 0) return `Could not read the password for ${ssid}: ${nmcliError(stderr)}`;
+  return parseSecret(stdout);
+}
+
+async function copyPassword(ssid: string, profiles: WifiProfile[]): Promise<RunResult> {
+  const secret = await readSecret(ssid, profiles);
+  if (typeof secret === "string") return { type: "error", message: secret };
+  if (!secret.password) return { type: "error", message: `${ssid} has no saved password` };
+  // Kept out of clipboard history, like a password manager's copy.
+  copyConcealed(secret.password);
+  return { type: "stay", toast: `Password for ${ssid} copied` };
+}
+
+/** The password, plus a QR code a phone camera scans to join. Enterprise networks have no such code. */
+async function showPassword(ssid: string, profiles: WifiProfile[]): Promise<RunResult> {
+  const secret = await readSecret(ssid, profiles);
+  if (typeof secret === "string") return { type: "error", message: secret };
+  if (!secret.password) return { type: "error", message: `${ssid} has no saved password` };
+  const lines = [`Network   ${ssid}`, `Password  ${secret.password}`];
+  if (secret.keyMgmt === "wpa-eap") return { type: "output", title: ssid, text: lines.join("\n") };
+  const svg = await QRCode.toString(wifiQrText(ssid, secret), { type: "svg", margin: 2, errorCorrectionLevel: "M" });
+  lines.push("", "Scan the code with a phone camera to join this network.");
+  return {
+    type: "output",
+    title: ssid,
+    text: lines.join("\n"),
+    image: `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`,
+  };
+}
+
+function passwordActions(ssid: string, profiles: WifiProfile[], copyShortcut: string, showShortcut: string): EntryAction[] {
+  return [
+    { id: "copy-password", title: "Copy Password", shortcut: copyShortcut, run: () => copyPassword(ssid, profiles) },
+    { id: "show-password", title: "Show Password and QR Code", shortcut: showShortcut, run: () => showPassword(ssid, profiles) },
+  ];
+}
+
 const rescanAction: EntryAction = { id: "rescan", title: "Rescan Networks", shortcut: "Ctrl+Shift+S", run: rescan };
 
 function networkEntry(network: WifiNetwork, snap: Snapshot): Entry {
@@ -280,6 +329,9 @@ function networkEntry(network: WifiNetwork, snap: Snapshot): Entry {
     },
   });
 
+  const kind = networkKind(network.security);
+  // Saved secured networks have a password to copy or show; OWE and open ones don't.
+  const hasPassword = saved && kind !== "open";
   let actions: EntryAction[];
   if (network.inUse) {
     const ip = snap.ip;
@@ -289,27 +341,36 @@ function networkEntry(network: WifiNetwork, snap: Snapshot): Entry {
       shortcut,
       run: () => disconnect(snap.device, network.ssid),
     });
-    actions = ip
-      ? [
-          {
-            id: "copy-ip",
-            title: "Copy IP Address",
-            shortcut: "↵",
-            run: () => {
-              copyText(ip);
-              return { type: "stay", toast: "IP address copied" };
+    const copyIp = (shortcut: string): EntryAction[] =>
+      ip
+        ? [
+            {
+              id: "copy-ip",
+              title: "Copy IP Address",
+              shortcut,
+              run: () => {
+                copyText(ip);
+                return { type: "stay", toast: "IP address copied" };
+              },
             },
-          },
-          disconnectAction("Ctrl+↵"),
+          ]
+        : [];
+    actions = hasPassword
+      ? [
+          ...passwordActions(network.ssid, profiles, "↵", "Ctrl+↵"),
+          ...copyIp("Ctrl+I"),
+          disconnectAction("Ctrl+Shift+D"),
           copyName("Ctrl+Shift+C"),
         ]
-      : [copyName("↵"), disconnectAction("Ctrl+↵")];
+      : ip
+        ? [...copyIp("↵"), disconnectAction("Ctrl+↵"), copyName("Ctrl+Shift+C")]
+        : [copyName("↵"), disconnectAction("Ctrl+↵")];
   } else {
-    const kind = networkKind(network.security);
     const title = saved || kind !== "unsupported" ? "Connect" : "Connect in Settings…";
     actions = [
       { id: "connect", title, shortcut: "↵", run: () => connect(network, profiles, snap.device) },
-      copyName("Ctrl+↵"),
+      ...(hasPassword ? passwordActions(network.ssid, profiles, "Ctrl+↵", "Ctrl+Shift+P") : []),
+      copyName(hasPassword ? "Ctrl+Shift+C" : "Ctrl+↵"),
     ];
   }
   actions.push(rescanAction);
@@ -332,9 +393,43 @@ function networkEntry(network: WifiNetwork, snap: Snapshot): Entry {
     subtitle,
     icon: network.inUse ? "✅" : network.security ? "🔒" : "🌐",
     accessory: network.inUse ? "Connected" : `${signalBars(network.signal)} ${network.signal}%`,
-    keywords: [security, saved ? "saved" : "", network.inUse ? "connected current" : ""],
+    keywords: [security, saved ? "saved" : "", hasPassword ? "password" : "", network.inUse ? "connected current" : ""],
     actions,
   };
+}
+
+/** A saved network that isn't in range: its password can still be copied or shown. */
+function savedEntry(ssid: string, profiles: WifiProfile[]): Entry {
+  return {
+    id: `wifi:saved:${ssid}`,
+    title: ssid,
+    subtitle: lastUsedText(profiles[0].timestamp, Date.now() / 1000),
+    icon: "💾",
+    accessory: "Not in range",
+    keywords: ["saved", "password", "known"],
+    actions: [
+      ...passwordActions(ssid, profiles, "↵", "Ctrl+↵"),
+      {
+        id: "copy-name",
+        title: "Copy Network Name",
+        shortcut: "Ctrl+Shift+C",
+        run: () => {
+          copyText(ssid);
+          return { type: "stay", toast: "Network name copied" };
+        },
+      },
+      { id: "forget", title: "Forget Network", shortcut: "Ctrl+D", danger: true, run: () => forget(ssid, profiles) },
+    ],
+  };
+}
+
+function savedSection(snap: Snapshot, matches: (entry: Entry) => boolean): Section {
+  const inRange = new Set(snap.networks.map((network) => network.ssid));
+  const entries = [...snap.saved]
+    .filter(([ssid]) => !inRange.has(ssid))
+    .map(([ssid, profiles]) => savedEntry(ssid, profiles))
+    .filter(matches);
+  return { title: "Saved Networks", entries };
 }
 
 function powerEntry(radio: Radio): Entry {
@@ -416,7 +511,12 @@ export const wifiView: ViewProvider = {
     const matches = (entry: Entry) => !q || bestScore(q, [entry.title, ...(entry.keywords ?? [])]) > 0;
     if (snap.error) return [{ title: "Wi-Fi", entries: [messageEntry("Could Not Read Wi-Fi", snap.error)] }];
     if (!snap.device) return [{ title: "Wi-Fi", entries: [messageEntry("No Wi-Fi Adapter Found", "NetworkManager reports no Wi-Fi device")] }];
-    if (!snap.radio.enabled) return [{ title: "Wi-Fi", entries: [powerEntry(snap.radio), settingsEntry].filter(matches) }];
+    if (!snap.radio.enabled) {
+      return [
+        { title: "Wi-Fi", entries: [powerEntry(snap.radio), settingsEntry].filter(matches) },
+        savedSection(snap, matches),
+      ];
+    }
     if (!q) scanInBackground();
 
     const shown = snap.networks
@@ -426,6 +526,7 @@ export const wifiView: ViewProvider = {
     return [
       { title: "Current Network", entries: shown.filter(({ network }) => network.inUse).map(({ entry }) => entry) },
       { title: "Networks", entries: shown.filter(({ network }) => !network.inUse).map(({ entry }) => entry) },
+      savedSection(snap, matches),
       { title: "Wi-Fi", entries: [powerEntry(snap.radio), rescanEntry, settingsEntry].filter(matches) },
     ];
   },

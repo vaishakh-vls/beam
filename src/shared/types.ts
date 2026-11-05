@@ -49,7 +49,15 @@ export type View =
   | "bluetooth"
   | "wifi"
   | "caffeinate"
-  | "clean-keyboard";
+  | "clean-keyboard"
+  | "devtools"
+  | "convert"
+  | "open-with"
+  | "welcome"
+  | "tabs"
+  | "fonts"
+  | "power"
+  | "themes";
 
 export interface ViewInfo {
   /** Shown as a badge beside the search field. */
@@ -91,7 +99,9 @@ export type RunResult =
   | { type: "stay"; toast?: string }
   | { type: "view"; view: View }
   | { type: "form"; form: FormSpec }
-  | { type: "output"; title: string; text: string }
+  | { type: "output"; title: string; text: string; image?: string }
+  /** Go back to the main search with this text typed, e.g. an example from the tour. */
+  | { type: "search"; query: string }
   | { type: "error"; message: string };
 
 /** Sent when the window opens: which view to start in, or a result to show. */

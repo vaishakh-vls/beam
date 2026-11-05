@@ -10,6 +10,7 @@ import { ICON_SCHEME, iconFileFromUrl } from "./icons";
 import { syncKeybinds } from "./keybinds";
 import { launchApp, loadApps } from "./providers/apps";
 import { stopCaffeinate } from "./providers/caffeinate";
+import { stopConversions } from "./providers/convert";
 import { startClipboardWatcher } from "./providers/clipboard";
 import { startFanGuard } from "./providers/fans";
 import { refreshRates } from "./providers/currency";
@@ -17,11 +18,15 @@ import { rebuildFileIndex, startFileIndexer } from "./providers/files";
 import { runQuicklink } from "./providers/quicklinks";
 import { runScriptByName } from "./providers/scripts";
 import { runSnippet } from "./providers/snippets";
+import { startBrowserBridge, stopBrowserBridge } from "./providers/tabs";
+import { refreshTheme, startThemes } from "./providers/themes";
+import { announceFirstRun, firstRunView } from "./providers/welcome";
 import { applyWindowAction, ensureWindowExtension } from "./providers/windows";
 import { launchableEntries, runAction, search, type SearchContext } from "./search";
 import { closeSocket, listenForRefs, socketPath } from "./socket";
 import { notify } from "./system";
 import { recordUse } from "./usage";
+import { setWindowOpener } from "./window";
 import type { RunResult, ShowPayload, View } from "../shared/types";
 
 const WIDTH = 760;
@@ -73,6 +78,8 @@ function createWindow(): BrowserWindow {
 
 function showWindow(payload: ShowPayload): void {
   if (!win) return;
+  // The first time the window opens, the tour stands in for the empty search.
+  if (payload.view === "root" && !payload.result) payload = { view: firstRunView() ?? "root" };
   const cursor = screen.getCursorScreenPoint();
   const { workArea } = screen.getDisplayNearestPoint(cursor);
   win.setBounds({
@@ -81,6 +88,7 @@ function showWindow(payload: ShowPayload): void {
     width: WIDTH,
     height: HEIGHT,
   });
+  refreshTheme();
   win.webContents.send("beam:show", payload);
   win.show();
   win.focus();
@@ -101,7 +109,7 @@ function handleResult(result: RunResult | null, ref: string): void {
     return;
   }
   if (result.type === "view") showWindow({ view: result.view });
-  else if (result.type === "form" || result.type === "output" || result.type === "error") {
+  else if (result.type === "form" || result.type === "output" || result.type === "error" || result.type === "search") {
     showWindow({ view: "root", result });
   }
 }
@@ -221,6 +229,8 @@ if (!app.requestSingleInstanceLock()) {
     loadConfig();
     registerIpc();
     win = createWindow();
+    startThemes(() => win);
+    setWindowOpener(showWindow);
     const loaded = new Promise<void>((resolve) => win!.webContents.once("did-finish-load", () => resolve()));
     createTray();
     ensureAutostart();
@@ -228,6 +238,7 @@ if (!app.requestSingleInstanceLock()) {
     startFileIndexer();
     void refreshRates();
     startFanGuard();
+    startBrowserBridge();
     loadApps();
     await registerHotkeys();
     if (!testMode) void ensureWindowExtension();
@@ -236,11 +247,14 @@ if (!app.requestSingleInstanceLock()) {
     await loaded;
     if (ref) void runRef(ref);
     else if (!process.argv.includes("--hidden")) showWindow({ view: "root" });
+    else announceFirstRun();
   });
 
   app.on("will-quit", () => {
     closeSocket();
     stopCaffeinate();
+    stopConversions();
+    stopBrowserBridge();
   });
 
   // Beam lives in the background; closing the window must not quit it.

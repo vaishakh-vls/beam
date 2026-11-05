@@ -6,13 +6,29 @@ Built with Electron, React and TypeScript.
 
 ## Install
 
+One step, on Ubuntu 22.04 or 24.04 with GNOME:
+
 ```bash
-npm ci
-npm run dist
-sudo apt install ./release/beam_0.1.0_amd64.deb
+gh api -H "Accept: application/vnd.github.raw" repos/vaishakh-vls/beam/contents/install.sh | bash
 ```
 
-Log out and back in once after installing so GNOME loads Beam's GNOME Shell helper, which does window management and Clean Keyboard. GNOME on Wayland loads new or updated extension code only at login, so log out again after an upgrade that updates the helper.
+That downloads the newest release, installs it with everything it needs (`apt` asks for your password), and starts Beam in the background. Press `Super+Space`: the first time, Beam opens a welcome tour of everything it can do; it stays available as **Welcome to Beam**.
+
+Other ways:
+
+- **Someone sent you the .deb:** `sudo apt install ./beam_0.2.0_amd64.deb`, then open Beam from the app grid (or log out and in; it starts at login).
+- **From a checkout:** `./install.sh` (newest release), `./install.sh path/to/beam.deb`, or `./install.sh --build` (builds with Node.js 20+ first).
+
+The repository is private, so `gh` must be signed in (`gh auth login`) with an account that has access.
+
+Log out and back in once after installing so GNOME loads Beam's GNOME Shell helper, which does window management and Clean Keyboard. GNOME on Wayland loads new or updated extension code only at login, so log out again after an upgrade that updates the helper. Restart Chrome once as well, for Browser Tabs.
+
+### Publishing a release
+
+```bash
+npm ci && npm run dist
+gh release create v0.2.0 release/beam_0.2.0_amd64.deb --title "Beam 0.2.0" --notes "..."
+```
 
 ## Shortcuts
 
@@ -33,7 +49,8 @@ Any command can get its own hotkey or alias from its action panel (`Ctrl+K`). Sh
 ## Features
 
 - **Apps** from `.desktop` files, with system icons
-- **Files**: indexed search of the folders in `fileSearchRoots`
+- **Files**: indexed search of the folders in `fileSearchRoots`, with **Quick Look** (`Ctrl+Y`: text, formatted JSON, images, a PDF's first page, folder contents) and **Open With…** (`Ctrl+O`: the apps for that file type, every other app, and "Always Open … with" to change the default)
+- **Welcome tour** on first launch: every feature with a "Try It"; reopen it any time with **Welcome to Beam**
 - **Clipboard history**: text and images, with password and token filtering
 - **Snippets** with placeholders (`{clipboard}`, `{date}`, ...)
 - **Quicklinks** to URLs with `{query}`
@@ -47,13 +64,19 @@ Any command can get its own hotkey or alias from its action panel (`Ctrl+K`). Sh
 - **Spotify**: now playing, playback controls and search, via playerctl
 - **Google Chrome**: search bookmarks and history, and open new or incognito windows
 - **GIF search**: search GIPHY and copy a GIF's URL or Markdown
-- **Wi-Fi**: connect to, disconnect from and forget networks, and turn Wi-Fi on or off
+- **Wi-Fi**: connect to, disconnect from and forget networks, turn Wi-Fi on or off, and copy or show saved passwords with a QR code for phones
 - **Bluetooth**: connect, pair and remove devices, and turn Bluetooth on or off
 - **Audio**: volume, mute, and output and input devices. `volume 40` in the main search sets the volume.
 - **Color picker**: pick a color anywhere on screen, copy it as HEX, RGB, HSL or OKLCH, and keep a history. Typing `#ff8800` or `rgb(255, 136, 0)` in the main search converts it.
 - **Caffeinate**: keep the laptop awake until stopped, or for a set time
 - **Speed test**: ping, jitter, download and upload, measured against Cloudflare
 - **Clean Keyboard**: lock the keyboard for up to 5 minutes so you can wipe it
+- **Browser Tabs**: search the open tabs of every Chrome window, switch to one or close it
+- **Developer Tools**: decode JWT and bearer tokens, format JSON, convert timestamps, Base64, URLs and number bases, hash text, generate UUIDs, passwords and secrets
+- **Convert Files**: images, video, audio and documents, e.g. PNG to JPEG, HEIC to JPEG, MP4 to GIF, DOCX to PDF
+- **Power Management**: battery health and time left, power profiles, ThinkPad charge limit, sleep and shutdown timers
+- **Themes**: 10 built-in themes, Follow System, and your own theme files
+- **Fonts**: browse installed fonts with live previews
 - **Web search fallbacks**
 
 Config lives in `~/.config/beam/config.json`.
@@ -69,6 +92,8 @@ Type a command's name, or a keyword such as `kill` or `bt`. Keys below act on th
 - Keys: `Enter` Quit Process (SIGTERM), `Ctrl+Enter` Force Kill (SIGKILL), `Ctrl+Shift+Enter` quit all your processes with that name, `Ctrl+Shift+C` copy PID, `Ctrl+M` sort by memory or CPU. Copy Command Line is in `Ctrl+K`.
 - Before ending a session-critical process such as `gnome-shell`, `systemd`, `Xwayland` or `dbus-daemon` (or Beam itself), Beam asks you to type its name.
 - Processes owned by root or another user are ended through `pkexec`, which asks for the admin password.
+
+Snaps such as Slack refuse signals from Beam directly (AppArmor), so Beam sends those through your user session's systemd; no password is needed.
 
 ### Fan Control
 
@@ -108,8 +133,11 @@ Commands: **Search Chrome**, **New Chrome Window**, **New Incognito Window**. Se
 
 Commands: **Wi-Fi** (the network list, via `nmcli`) and **Toggle Wi-Fi**.
 
-- Network: `Enter` Connect, `Ctrl+Enter` copy name, `Ctrl+Shift+S` rescan, `Ctrl+D` Forget Network (saved networks).
-- Connected network: `Enter` copy IP address, `Ctrl+Enter` Disconnect, `Ctrl+Shift+C` copy name.
+- Network: `Enter` Connect, `Ctrl+Shift+S` rescan, `Ctrl+Shift+C` copy name, `Ctrl+D` Forget Network (saved networks).
+- Saved secured network: `Ctrl+Enter` Copy Password, `Ctrl+Shift+P` Show Password and QR Code.
+- Connected network: `Enter` Copy Password, `Ctrl+Enter` Show Password and QR Code, `Ctrl+I` copy IP address, `Ctrl+Shift+D` Disconnect. (An open network: `Enter` copy IP, `Ctrl+Enter` Disconnect.)
+- **Saved Networks** lists networks you've joined that are out of range, so their passwords can be copied or shown anywhere, even with Wi-Fi off.
+- The QR code is the standard `WIFI:` code: a phone camera scans it to join. Copied passwords are kept out of clipboard history.
 - Saved and open networks connect directly. A new WPA/WPA2 or WPA3 network asks for the password and saves it with the network, as GNOME Settings does. WEP and enterprise (802.1X) networks open GNOME Settings instead.
 - The password never appears on the command line: it reaches `nmcli` through a temporary file (mode 0600, in `$XDG_RUNTIME_DIR`) that is deleted straight after.
 - Turn Wi-Fi On/Off, Rescan Networks and Open Wi-Fi Settings are below the list.
@@ -158,6 +186,45 @@ Keeps the laptop awake with an idle and suspend inhibitor (`gnome-session-inhibi
 
 - One-time: log out and back in once after installing, because GNOME on Wayland loads updated extension code only at login. Until then, Beam shows a notification saying so.
 
+### Power Management
+
+Commands: **Power Management**, **Battery Status**, **Set Power Profile: Performance / Balanced / Power Saver**.
+
+- Live battery level, time to full or empty, power draw, health (capacity versus design), charge cycles and charger wattage.
+- Power profiles through `powerprofilesctl`, the current one marked.
+- ThinkPad charge limit: Full, Stop at 80%, Stop at 60% or custom. A root helper (`beam-power`, allowed by a polkit policy) writes the thresholds, which the battery firmware keeps.
+- Lock, Sleep, Hibernate (when available), Log Out, Restart and Shut Down; the last three need a second Enter within 4 seconds.
+- Timers: type `45m`, `sleep 30` or `shutdown at 23:00` in the view, with Cancel. Beam warns a minute before.
+
+### Themes and Fonts
+
+- **Change Beam Theme**: Beam Dark, Beam Light, Catppuccin Mocha and Latte, Nord, Tokyo Night, Gruvbox Dark, Dracula, Rosé Pine and Rosé Pine Dawn, plus Follow System (GNOME's light/dark setting). Your own themes go in `~/.config/beam/themes/*.json` and only need the colors they change; **New Theme from This…** (`Ctrl+N`) writes a starting file.
+- **Search Fonts**: every installed family, with a preview drawn in the font (scripts without Latin letters show their own glyphs). Type `"your text` to preview your own words. Copy the family name or CSS `font-family`, show the file, open it in GNOME Fonts, or install a font file.
+
+### Browser Tabs
+
+Command: **Search Browser Tabs**. Search the open tabs of every Chrome window and profile: `Enter` switches to the tab, `Ctrl+Enter` copies its URL, `Ctrl+W` closes it, `Ctrl+Shift+C` copies a Markdown link.
+
+Chrome only shows tabs to extensions, so Beam ships a small one (`chrome-extension/`) and a native messaging host (`packaging/beam-browser-host`) that relays to Beam over a private socket. The .deb registers the signed extension with Chrome, which installs it at its next restart and removes it again when Beam is uninstalled. It is signed with a key that stays out of the repo (`~/.config/beam-signing/chrome-extension.pem`, needed only to build a release). Builds without the key leave the extension out, and the view then lists the steps for loading it by hand.
+
+### Developer Tools
+
+Commands: **Developer Tools**, **Decode JWT**, **Format JSON in Clipboard**, **Generate UUID**, **Generate Password**, **Generate Secret** and **Copy Unix Timestamp**.
+
+- Paste or type anything into Developer Tools and it shows what fits: a JWT or `Bearer` token decoded (claims, expiry as "expires in 2h", header, payload; the signature is not verified), JSON formatted, minified, key-sorted or escaped (invalid JSON shows the line and column), Unix timestamps and ISO dates converted, URLs and their query parameters, Base64 and Base64URL, number bases, UUID versions, MD5/SHA hashes, case styles and text counts.
+- Opened with nothing typed, it reads the clipboard.
+- The main search decodes a pasted JWT and a 10- or 13-digit timestamp inline, and `uuid` gives a fresh UUID.
+- Tokens, passwords and secrets are copied without entering clipboard history.
+
+### Convert Files
+
+Command: **Convert Files**; `Ctrl+T` on a file in search results. Copy files in the Files app (`Ctrl+C`) and open Convert Files, or choose files from it.
+
+- Images (PNG, JPEG, WebP, AVIF, HEIC, GIF, BMP, TIFF, SVG, ICO) to PNG, JPEG, WebP, AVIF, GIF, ICO (favicon sizes), BMP, TIFF; Resize 50%, Fit 1920 px, Compress. Via ImageMagick.
+- Videos to MP4, WebM, GIF, MP3, Compress; audio between MP3, WAV, OGG, FLAC and M4A. Via ffmpeg, with progress.
+- Office documents to PDF (LibreOffice, if installed); PDF to PNG pages (poppler).
+- The result is saved next to the original and never overwrites a file. Recent Conversions has Open and Show in Folder.
+
 ## Development
 
 ```bash
@@ -175,8 +242,9 @@ On Wayland, apps can't type into other windows, so pasting from Beam copies to t
 | Path | Contents |
 |---|---|
 | `src/main/` | Electron main process: search, hotkeys, IPC, and the pure helpers behind the providers |
-| `src/main/providers/` | Apps, files, clipboard, snippets, quicklinks, emoji, calculator, currency, scripts, windows, processes, fans, Spotify, Chrome, GIFs, Wi-Fi, Bluetooth, audio, color, caffeinate, speed test, keyboard |
+| `src/main/providers/` | Apps, files, clipboard, snippets, quicklinks, emoji, calculator, currency, scripts, windows, processes, fans, Spotify, Chrome, GIFs, Wi-Fi, Bluetooth, audio, color, caffeinate, speed test, keyboard, Browser Tabs, developer tools, file conversion, Open With and Quick Look, power, fonts, themes, welcome tour |
 | `src/renderer/` | React UI |
 | `src/shared/` | Types shared by both |
 | `gnome-extension/` | GNOME Shell helper for window management and Clean Keyboard (D-Bus) |
-| `packaging/` | .deb install and remove scripts; `beam-fan` (root fan helper) and its polkit policy; `beam-pick-color` (portal color picker) |
+| `chrome-extension/` | Chrome extension behind Browser Tabs |
+| `packaging/` | .deb install and remove scripts; `beam-fan` and `beam-power` (root helpers) and their polkit policies; `beam-pick-color` (portal color picker); `beam-browser-host` (Chrome native messaging host) |

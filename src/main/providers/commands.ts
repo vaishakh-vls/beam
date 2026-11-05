@@ -55,7 +55,7 @@ export function builtinCommands(reload: () => void): BuiltinCommand[] {
     { name: "clipboard", title: "Clipboard History", subtitle: "Beam", icon: "📋", keywords: ["clipboard", "paste", "copy"], run: view("clipboard") },
     { name: "snippets", title: "Search Snippets", subtitle: "Beam", icon: "✂️", keywords: ["snippets", "text", "expand"], run: view("snippets") },
     { name: "create-snippet", title: "Create Snippet", subtitle: "Beam", icon: "✂️", run: openCreateSnippetForm },
-    { name: "quicklinks", title: "Search Quicklinks", subtitle: "Beam", icon: "🔗", keywords: ["quicklinks", "bookmark", "url"], run: view("quicklinks") },
+    { name: "quicklinks", title: "Search Quicklinks", subtitle: "Beam", icon: "🔗", keywords: ["quicklinks", "shortcuts", "bookmark", "url"], run: view("quicklinks") },
     { name: "create-quicklink", title: "Create Quicklink", subtitle: "Beam", icon: "🔗", run: openCreateQuicklinkForm },
     { name: "emoji", title: "Search Emoji & Symbols", subtitle: "Beam", icon: "😀", keywords: ["emoji", "emoticon", "smiley", "symbols"], run: view("emoji") },
     { name: "windows", title: "Window Management", subtitle: "Beam", icon: "🪟", keywords: ["tile", "snap", "resize", "layout"], run: view("windows") },

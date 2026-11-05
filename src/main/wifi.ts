@@ -176,6 +176,65 @@ export function passwdFileLine(password: string): string {
   return `802-11-wireless-security.psk:${value}\n`;
 }
 
+export interface WifiSecret {
+  /** The profile's key-mgmt: "wpa-psk", "sae", "none" (WEP), "wpa-eap"…; empty for open networks. */
+  keyMgmt: string;
+  /** Empty when the profile has no saved password. */
+  password: string;
+}
+
+/** The fields `nmcli -s -t -e no -f <fields> connection show uuid X` is asked for. */
+export const SECRET_FIELDS = [
+  "802-11-wireless-security.key-mgmt",
+  "802-11-wireless-security.psk",
+  "802-11-wireless-security.wep-key0",
+  "802-1x.password",
+].join(",");
+
+/**
+ * The saved password from `nmcli -s -t -e no -f SECRET_FIELDS`. nmcli leaves
+ * out the fields of settings a profile doesn't have, so values are read by
+ * name rather than position.
+ */
+export function parseSecret(text: string): WifiSecret {
+  const values = new Map<string, string>();
+  for (const line of text.split("\n")) {
+    const colon = line.indexOf(":");
+    if (colon > 0) values.set(line.slice(0, colon), line.slice(colon + 1));
+  }
+  return {
+    keyMgmt: values.get("802-11-wireless-security.key-mgmt") ?? "",
+    password:
+      values.get("802-11-wireless-security.psk") ||
+      values.get("802-11-wireless-security.wep-key0") ||
+      values.get("802-1x.password") ||
+      "",
+  };
+}
+
+/**
+ * What a phone camera reads to join a network: the WIFI: scheme Android and
+ * iOS both understand. Backslash, ; , : and " are escaped inside values.
+ */
+export function wifiQrText(ssid: string, secret: WifiSecret): string {
+  const escape = (value: string) => value.replace(/([\\;,:"])/g, "\\$1");
+  if (!secret.password) return `WIFI:T:nopass;S:${escape(ssid)};;`;
+  const type = secret.keyMgmt === "sae" ? "SAE" : secret.keyMgmt === "none" ? "WEP" : "WPA";
+  return `WIFI:T:${type};S:${escape(ssid)};P:${escape(secret.password)};;`;
+}
+
+/** "Last used 3 days ago" from a profile's TIMESTAMP (seconds; 0 when it never connected). */
+export function lastUsedText(timestamp: number, nowSeconds: number): string {
+  if (!timestamp) return "Saved, never connected";
+  const days = Math.floor((nowSeconds - timestamp) / 86_400);
+  if (days < 1) return "Last used today";
+  if (days < 2) return "Last used yesterday";
+  if (days < 14) return `Last used ${days} days ago`;
+  if (days < 60) return `Last used ${Math.floor(days / 7)} weeks ago`;
+  if (days < 730) return `Last used ${Math.floor(days / 30)} months ago`;
+  return `Last used ${Math.floor(days / 365)} years ago`;
+}
+
 /** nmcli's own bars: ▂▄▆█ for a strong signal, with _ for the missing ones. */
 export function signalBars(signal: number): string {
   const count = signal > 80 ? 4 : signal > 55 ? 3 : signal > 30 ? 2 : signal > 5 ? 1 : 0;

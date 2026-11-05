@@ -1,0 +1,61 @@
+#!/bin/sh
+# Runs as root through pkexec. Sets the battery charge limit for Beam's Power
+# Management. pkexec passes the caller's arguments straight through, so they
+# are checked here. ThinkPads keep the thresholds in the battery firmware, so
+# they last across restarts.
+#
+#   beam-power charge-limit <start 0-99> <end 40-100>   no password (com.virallens.beam.power.policy)
+#
+# Charging stops at <end>% and starts again below <start>%. 0 100 is the
+# firmware default (always charge to full).
+
+set -eu
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+SUPPLY=/sys/class/power_supply
+
+usage() {
+  echo "usage: beam-power charge-limit <start 0-99> <end 40-100>" >&2
+  exit 2
+}
+
+[ "$#" -eq 3 ] || usage
+
+case "$1" in
+  charge-limit) ;;
+  *) usage ;;
+esac
+
+# Whole numbers without leading zeros, so the shell never reads them as octal.
+case "$2" in
+  0|[1-9]|[1-9][0-9]) start=$2 ;;
+  *) echo "beam-power: start must be 0-99" >&2; exit 2 ;;
+esac
+case "$3" in
+  4[0-9]|[5-9][0-9]|100) end=$3 ;;
+  *) echo "beam-power: end must be 40-100" >&2; exit 2 ;;
+esac
+if [ "$start" -ge "$end" ]; then
+  echo "beam-power: start must be below end" >&2
+  exit 2
+fi
+
+found=0
+for bat in "$SUPPLY"/BAT[0-9]; do
+  [ -f "$bat/charge_control_end_threshold" ] && [ -f "$bat/charge_control_start_threshold" ] || continue
+  found=1
+  current_end=$(cat "$bat/charge_control_end_threshold")
+  # The firmware refuses a start above the current end, so raise the end first
+  # when it goes up and lower the start first when it goes down.
+  if [ "$end" -gt "$current_end" ]; then
+    echo "$end" > "$bat/charge_control_end_threshold"
+    echo "$start" > "$bat/charge_control_start_threshold"
+  else
+    echo "$start" > "$bat/charge_control_start_threshold"
+    echo "$end" > "$bat/charge_control_end_threshold"
+  fi
+done
+
+if [ "$found" -eq 0 ]; then
+  echo "beam-power: this battery has no charge limit setting" >&2
+  exit 3
+fi

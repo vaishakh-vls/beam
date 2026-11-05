@@ -12,8 +12,11 @@ import {
   parseWifiProfiles,
   passwdFileLine,
   passwordProblem,
+  lastUsedText,
+  parseSecret,
   signalBars,
   splitTerse,
+  wifiQrText,
 } from "../src/main/wifi.ts";
 
 // Real output from nmcli 1.46 on Ubuntu 24.04, trimmed.
@@ -151,4 +154,34 @@ test("added profile UUID, signal bars and nmcli errors", () => {
     "Secrets were required, but not provided",
   );
   assert.equal(nmcliError("Error: 00000000 - no such connection profile.\n"), "00000000 - no such connection profile.");
+});
+
+test("parseSecret reads the password by field name, whichever settings the profile has", () => {
+  const psk = parseSecret(
+    "802-11-wireless-security.key-mgmt:wpa-psk\n802-11-wireless-security.psk:pa:ss word\n802-11-wireless-security.wep-key0:\n",
+  );
+  assert.deepEqual(psk, { keyMgmt: "wpa-psk", password: "pa:ss word" });
+  const wep = parseSecret("802-11-wireless-security.key-mgmt:none\n802-11-wireless-security.psk:\n802-11-wireless-security.wep-key0:abcde\n");
+  assert.deepEqual(wep, { keyMgmt: "none", password: "abcde" });
+  const eap = parseSecret("802-11-wireless-security.key-mgmt:wpa-eap\n802-1x.password:corp\n");
+  assert.deepEqual(eap, { keyMgmt: "wpa-eap", password: "corp" });
+  assert.deepEqual(parseSecret(""), { keyMgmt: "", password: "" });
+});
+
+test("wifiQrText escapes the special characters and names the security type", () => {
+  assert.equal(wifiQrText("Home", { keyMgmt: "wpa-psk", password: "secret12" }), "WIFI:T:WPA;S:Home;P:secret12;;");
+  assert.equal(wifiQrText("A;B", { keyMgmt: "sae", password: 'p:a,s"s\\' }), 'WIFI:T:SAE;S:A\\;B;P:p\\:a\\,s\\"s\\\\;;');
+  assert.equal(wifiQrText("Old", { keyMgmt: "none", password: "abcde" }), "WIFI:T:WEP;S:Old;P:abcde;;");
+  assert.equal(wifiQrText("Cafe", { keyMgmt: "", password: "" }), "WIFI:T:nopass;S:Cafe;;");
+});
+
+test("lastUsedText", () => {
+  const now = 1_762_000_000;
+  assert.equal(lastUsedText(0, now), "Saved, never connected");
+  assert.equal(lastUsedText(now - 3600, now), "Last used today");
+  assert.equal(lastUsedText(now - 86_400 * 1.5, now), "Last used yesterday");
+  assert.equal(lastUsedText(now - 86_400 * 5, now), "Last used 5 days ago");
+  assert.equal(lastUsedText(now - 86_400 * 21, now), "Last used 3 weeks ago");
+  assert.equal(lastUsedText(now - 86_400 * 100, now), "Last used 3 months ago");
+  assert.equal(lastUsedText(now - 86_400 * 800, now), "Last used 2 years ago");
 });

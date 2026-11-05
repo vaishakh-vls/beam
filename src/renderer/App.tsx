@@ -24,7 +24,7 @@ declare global {
 type Screen =
   | { kind: "list"; view: View }
   | { kind: "form"; form: FormSpec }
-  | { kind: "output"; title: string; text: string };
+  | { kind: "output"; title: string; text: string; image?: string };
 
 const EMPTY: SearchResponse = { sections: [], info: { title: "", placeholder: "", preview: false, grid: false } };
 const ROOT: Screen = { kind: "list", view: "root" };
@@ -109,11 +109,15 @@ export function App() {
             goTo({ kind: "list", view: result.view }, fromForm);
           }
           break;
+        case "search":
+          setStack([ROOT]);
+          setQuery(result.query);
+          break;
         case "form":
           goTo({ kind: "form", form: result.form });
           break;
         case "output":
-          goTo({ kind: "output", title: result.title, text: result.text }, fromForm);
+          goTo({ kind: "output", title: result.title, text: result.text, image: result.image }, fromForm);
           break;
         case "error":
           if (fromForm) setFormError(result.message);
@@ -265,7 +269,12 @@ export function App() {
             }}
           />
         )}
-        {screen.kind === "output" && <pre className="output">{screen.text}</pre>}
+        {screen.kind === "output" && (
+          <pre className="output">
+            {screen.image && <img className="output-image" src={screen.image} alt="" />}
+            {screen.text}
+          </pre>
+        )}
       </main>
 
       <footer className="footer">

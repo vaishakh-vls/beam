@@ -285,6 +285,14 @@ body,
   padding: 14px 16px;
 }
 
+.output-image {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  margin-bottom: 14px;
+  border-radius: 8px;
+}
+
 .preview-text,
 .output {
   flex: 1;
@@ -350,8 +358,8 @@ body,
 
 .form input:focus,
 .form textarea:focus {
-  border-color: rgba(139, 123, 255, 0.7);
-  box-shadow: 0 0 0 3px rgba(139, 123, 255, 0.18);
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .hotkey-input {

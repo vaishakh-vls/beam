@@ -1,0 +1,50 @@
+<!doctype html>
+<!-- Opened by Beam (Browser Tabs > Connect Chrome) as a file:// page: Chrome won't open chrome://extensions from its command line. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Connect Beam to Chrome</title>
+    <style>
+      :root { color-scheme: light dark; font: 15px/1.5 system-ui, sans-serif; }
+      body { max-width: 640px; margin: 48px auto; padding: 0 24px; }
+      h1 { font-size: 22px; margin-bottom: 4px; }
+      p.lead { margin-top: 0; opacity: 0.75; }
+      ol { padding-left: 22px; }
+      li { margin: 18px 0; }
+      code { font: 13px ui-monospace, monospace; padding: 2px 6px; border-radius: 4px; background: rgba(127, 127, 127, 0.18); word-break: break-all; }
+      button { font: inherit; font-size: 13px; margin-left: 8px; padding: 2px 10px; border-radius: 6px; border: 1px solid rgba(127, 127, 127, 0.5); background: transparent; cursor: pointer; }
+      .note { margin-top: 28px; font-size: 13px; opacity: 0.75; }
+    </style>
+  </head>
+  <body>
+    <h1>Connect Beam to Chrome</h1>
+    <p class="lead">Beam's Browser Tabs needs its small extension in Chrome. This takes a minute, once per Chrome profile.</p>
+    <ol>
+      <li>
+        Open <code>chrome://extensions</code><button data-copy="chrome://extensions">Copy</button><br />
+        Paste it into the address bar and press Enter. (Or: menu ⋮ › Extensions › Manage Extensions.)
+      </li>
+      <li>Turn on <b>Developer mode</b>, the switch at the top right.</li>
+      <li>
+        Click <b>Load unpacked</b>, press Ctrl+L, paste this folder and press Enter, then click <b>Select</b>:<br />
+        <code id="folder"></code><button data-copy-folder>Copy</button>
+      </li>
+      <li>That's it. In Beam, <b>Search Browser Tabs</b> now lists your tabs.</li>
+    </ol>
+    <p class="note">
+      Keep Developer mode on: Chrome turns off extensions loaded this way when it is off. To see incognito tabs too, open the
+      extension's Details and turn on "Allow in Incognito".
+    </p>
+    <script>
+      const folder = decodeURIComponent(location.pathname.replace(/\/[^/]*$/, ""));
+      document.getElementById("folder").textContent = folder;
+      for (const button of document.querySelectorAll("button")) {
+        button.addEventListener("click", async () => {
+          await navigator.clipboard.writeText(button.dataset.copy ?? folder);
+          button.textContent = "Copied";
+          setTimeout(() => (button.textContent = "Copy"), 1500);
+        });
+      }
+    </script>
+  </body>
+</html>

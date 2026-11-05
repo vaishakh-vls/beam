@@ -36,6 +36,8 @@ export interface BeamConfig {
   currency: string;
   /** For GIF search; free from developers.giphy.com. Empty until the user adds one. */
   giphyApiKey: string;
+  /** Beam's window theme: a built-in id such as "nord", "system" to follow GNOME's dark style, or "user:<file>" for ~/.config/beam/themes/<file>.json. */
+  theme: string;
 }
 
 const DEFAULT_CONFIG: BeamConfig = {
@@ -57,6 +59,7 @@ const DEFAULT_CONFIG: BeamConfig = {
   webSearchUrl: "https://www.google.com/search?q=%s",
   currency: "auto",
   giphyApiKey: "",
+  theme: "beam-dark",
 };
 
 const EXAMPLE_SCRIPT = `#!/bin/bash

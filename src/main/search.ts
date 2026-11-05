@@ -12,17 +12,25 @@ import { chromeCommands, chromeView } from "./providers/chrome";
 import { clipboardEntries } from "./providers/clipboard";
 import { colorCommands, colorEntry, colorView } from "./providers/color";
 import { commandEntries } from "./providers/commands";
+import { convertCommands, convertView } from "./providers/convert";
 import { currencyEntry } from "./providers/currency";
+import { devtoolsCommands, devtoolsInlineEntries, devtoolsView } from "./providers/devtools";
 import { emojiSections } from "./providers/emoji";
 import { fanCommands, fanView } from "./providers/fans";
 import { searchFiles } from "./providers/files";
+import { fontsCommands, fontsView } from "./providers/fonts";
 import { gifCommands, gifView } from "./providers/gifs";
 import { keyboardCommands, keyboardView } from "./providers/keyboard";
+import { openWithView } from "./providers/openwith";
+import { powerCommands, powerView } from "./providers/power";
 import { processCommands, processView } from "./providers/processes";
 import { quicklinkEntries, rootQuicklinkEntries } from "./providers/quicklinks";
 import { scriptEntries } from "./providers/scripts";
 import { speedtestCommands, speedtestView } from "./providers/speedtest";
 import { spotifyCommands, spotifyView } from "./providers/spotify";
+import { tabsCommands, tabsView } from "./providers/tabs";
+import { themesCommands, themesView } from "./providers/themes";
+import { welcomeCommands, welcomeView } from "./providers/welcome";
 import { wifiCommands, wifiView } from "./providers/wifi";
 import { windowEntries } from "./providers/windows";
 import { createSnippetAction, snippetEntries, snippetKeywordMatches } from "./providers/snippets";
@@ -61,6 +69,14 @@ const VIEWS: Partial<Record<View, ViewProvider>> = {
   caffeinate: caffeinateView,
   speedtest: speedtestView,
   "clean-keyboard": keyboardView,
+  "open-with": openWithView,
+  devtools: devtoolsView,
+  convert: convertView,
+  fonts: fontsView,
+  power: powerView,
+  themes: themesView,
+  tabs: tabsView,
+  welcome: welcomeView,
 };
 
 /** Entries from the latest search, so run() can find the clicked item. */
@@ -79,6 +95,7 @@ export function runAction(itemId: string, actionId: string): RunResult | Promise
 export function launchableEntries(ctx: SearchContext): Entry[] {
   return [
     ...commandEntries(ctx.reload),
+    ...welcomeCommands(),
     ...processCommands(),
     ...fanCommands(),
     ...spotifyCommands(ctx.hide),
@@ -91,6 +108,12 @@ export function launchableEntries(ctx: SearchContext): Entry[] {
     ...caffeinateCommands(ctx.hide),
     ...speedtestCommands(ctx.hide),
     ...keyboardCommands(ctx.hide),
+    ...devtoolsCommands(ctx.hide),
+    ...convertCommands(ctx.hide),
+    ...fontsCommands(ctx.hide),
+    ...powerCommands(ctx.hide),
+    ...themesCommands(ctx.hide),
+    ...tabsCommands(ctx.hide),
     ...windowEntries(ctx.hide),
     ...appEntries(),
     ...scriptEntries(),
@@ -197,6 +220,8 @@ function rootSearch(query: string, ctx: SearchContext): Section[] {
   if (volume) sections.push({ title: "Volume", entries: [volume] });
   const color = colorEntry(q);
   if (color) sections.push({ title: "Color", entries: [color] });
+  const dev = devtoolsInlineEntries(q, ctx.hide);
+  if (dev.length) sections.push({ title: "Developer Tools", entries: dev });
   sections.push({
     title: "Results",
     entries: ranked.slice(0, 12).map(({ entry }) => withCommandActions(entry, ctx)),

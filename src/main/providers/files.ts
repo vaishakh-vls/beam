@@ -5,6 +5,8 @@ import { config } from "../config";
 import { HIDE, type Entry } from "../entry";
 import { fuzzyScore } from "../fuzzy";
 import { copyText, openPath, revealInFolder } from "../system";
+import { convertFileAction } from "./convert";
+import { openWithAction, quickLookAction } from "./openwith";
 
 const SKIP_DIRS = new Set([
   "node_modules",
@@ -118,6 +120,9 @@ function fileEntry(record: FileRecord): Entry {
           return HIDE;
         },
       },
+      quickLookAction(record.path),
+      openWithAction(record.path),
+      ...(record.isDir ? [] : [convertFileAction(record.path)].filter((action) => action !== null)),
       {
         id: "copy-path",
         title: "Copy Path",

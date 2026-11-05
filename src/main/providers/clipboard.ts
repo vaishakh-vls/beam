@@ -34,6 +34,12 @@ export function startClipboardWatcher(): void {
   }, POLL_MS).unref();
 }
 
+/** Copies text that must stay out of clipboard history, such as a Wi-Fi password or a generated secret. */
+export function copyConcealed(text: string): void {
+  lastSeen = text;
+  clipboard.writeText(text);
+}
+
 /**
  * Password managers mark copied passwords with this hint (KeePassXC,
  * Bitwarden, KDE apps). Tokens and keys are also skipped unless the user

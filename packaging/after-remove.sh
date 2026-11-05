@@ -15,8 +15,13 @@ if [ -f /etc/apparmor.d/beam ]; then
 fi
 
 rm -f /usr/share/polkit-1/actions/com.virallens.beam.fan.policy
+rm -f /usr/share/polkit-1/actions/com.virallens.beam.power.policy
 
 # dpkg also runs this on upgrades; keep the fan setting unless Beam is removed.
 case "${1:-}" in
-    remove|purge) rm -f /etc/modprobe.d/beam-thinkpad-fan.conf ;;
+    remove|purge)
+        rm -f /etc/modprobe.d/beam-thinkpad-fan.conf /etc/xdg/autostart/beam.desktop
+        # Chrome uninstalls the Browser Tabs extension at its next start once this is gone.
+        rm -f /usr/share/google-chrome/extensions/mgpijmbkbogdbehfmjlppgliampccfmp.json
+        ;;
 esac

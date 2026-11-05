@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Beam Browser Tabs",
+  "version": "1.0.0",
+  "description": "Lets the Beam launcher search, switch to and close your open tabs.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp3aZlyOzX/Y2tWq+Ys0UGJd1DoJII5KS3OcTmoncR7dEI/ikLv5gdgXdZ7HeXHDOXfWk1TB83c/CFX5Lc/BC4SUltivdrdCi215T1XRZMYDpIRSXs4y38P4Xsd5Mio+q+p058JS9Cq/If56VQk5TBQ7j+YiewKMb5wrlHGbkmxKE9jLw2NDv3IojaK32I3lHQhpFG7C14D9XEJG1OGA0gJ8k3KQurcdwGDBMmPzNR3dDixLqTD2yRKjqXu1Qab57bnR8kue9bRoWegDqwKwnLFU18i+iR9Wz/Hu9fS/ijHgTEHqKX+ADCPqnJFG5VqFATdhZQED5RzW+PhDkvmBvgQIDAQAB",
+  "minimum_chrome_version": "121",
+  "icons": { "128": "icon-128.png" },
+  "permissions": ["tabs", "favicon", "nativeMessaging", "alarms"],
+  "background": { "service_worker": "background.js" }
+}

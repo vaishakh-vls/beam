@@ -1,0 +1,130 @@
+#!/usr/bin/python3 -I
+"""Native messaging host for Beam's Browser Tabs (Chrome extension com.virallens.beam).
+
+Chrome starts one per profile that has the extension and talks to it over
+stdin/stdout. This relays those messages to Beam's socket at
+$XDG_RUNTIME_DIR/beam-browser.sock and back, unchanged. Both sides frame each
+JSON message with a 4-byte length: native byte order towards Chrome (its
+rule), little-endian towards Beam.
+
+While Beam is not running it keeps retrying the socket instead of exiting:
+the open port keeps the extension's service worker alive, so the tabs are
+there as soon as Beam starts. It exits when Chrome closes stdin.
+"""
+
+import os
+import select
+import socket
+import struct
+import sys
+import time
+
+RETRY_SECONDS = 1.0
+# Chrome refuses larger messages from a host.
+MAX_TO_CHROME = 1024 * 1024
+# Tab lists with favicons stay far below this.
+MAX_FROM_CHROME = 64 * 1024 * 1024
+
+
+def socket_path():
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or "/run/user/%d" % os.getuid()
+    return os.path.join(runtime, "beam-browser.sock")
+
+
+def connect():
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        sock.connect(socket_path())
+    except OSError:
+        sock.close()
+        return None
+    return sock
+
+
+def take_frames(buffer, order, limit):
+    """Removes the complete frames from the front of buffer and returns their payloads."""
+    frames = []
+    while len(buffer) >= 4:
+        (size,) = struct.unpack(order + "I", buffer[:4])
+        if size > limit:
+            raise ValueError("message of %d bytes is too large" % size)
+        if len(buffer) < 4 + size:
+            break
+        frames.append(bytes(buffer[4 : 4 + size]))
+        del buffer[: 4 + size]
+    return frames
+
+
+def write_all(fd, data):
+    view = memoryview(data)
+    while view:
+        view = view[os.write(fd, view) :]
+
+
+def log(message):
+    # Chrome copies a host's stderr into its own log (start Chrome with --enable-logging to see it).
+    sys.stderr.write("beam-browser-host: %s\n" % message)
+    sys.stderr.flush()
+
+
+def main():
+    stdin, stdout = sys.stdin.fileno(), sys.stdout.fileno()
+    from_chrome = bytearray()
+    from_beam = bytearray()
+    beam = None
+    next_try = 0.0
+
+    while True:
+        if beam is None and time.monotonic() >= next_try:
+            beam = connect()
+            from_beam.clear()
+            next_try = time.monotonic() + RETRY_SECONDS
+        watched = [stdin] + ([beam] if beam else [])
+        timeout = None if beam else max(0.0, next_try - time.monotonic())
+        readable, _, _ = select.select(watched, [], [], timeout)
+
+        if stdin in readable:
+            chunk = os.read(stdin, 65536)
+            if not chunk:
+                return 0
+            from_chrome += chunk
+            try:
+                frames = take_frames(from_chrome, "=", MAX_FROM_CHROME)
+            except ValueError as error:
+                log(str(error))
+                return 1
+            # Replies that arrive while Beam is away answer requests nobody is waiting for.
+            if beam:
+                try:
+                    for frame in frames:
+                        beam.sendall(struct.pack("<I", len(frame)) + frame)
+                except OSError:
+                    beam.close()
+                    beam = None
+
+        if beam and beam in readable:
+            try:
+                chunk = beam.recv(65536)
+                from_beam += chunk
+                frames = take_frames(from_beam, "<", MAX_TO_CHROME)
+            except (OSError, ValueError) as error:
+                log(str(error))
+                chunk = b""
+            if not chunk:
+                # Beam quit or restarted (or dropped this connection): try again shortly, not in a tight loop.
+                beam.close()
+                beam = None
+                next_try = time.monotonic() + RETRY_SECONDS
+                continue
+            try:
+                for frame in frames:
+                    write_all(stdout, struct.pack("=I", len(frame)) + frame)
+            except BrokenPipeError:
+                return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(0)

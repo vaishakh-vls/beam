@@ -1,8 +1,8 @@
 {
   "name": "beam",
   "productName": "Beam",
-  "version": "0.1.0",
-  "description": "A Raycast-style launcher for Ubuntu: apps, files, clipboard history, snippets, quicklinks, emoji, calculator and script commands.",
+  "version": "0.2.0",
+  "description": "A Raycast-style launcher for Ubuntu: apps, files, clipboard history, snippets, window management, browser tabs, developer tools, file conversion and system controls.",
   "homepage": "https://beam.local",
   "main": "dist/main/main.js",
   "author": {
@@ -20,10 +20,11 @@
     "start": "npm run build && electron .",
     "dev": "npm run build:main && concurrently -k \"vite\" \"node scripts/build-main.mjs --watch\" \"sleep 2 && BEAM_DEV_URL=http://localhost:5183 electron . --no-sandbox\"",
     "test": "node --test tests/*.test.ts",
-    "dist": "npm run build && electron-builder --linux deb"
+    "dist": "npm run build && node scripts/pack-chrome-extension.mjs && electron-builder --linux deb"
   },
   "devDependencies": {
     "@types/node": "22.10.1",
+    "@types/qrcode": "1.5.6",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
     "@vitejs/plugin-react": "4.3.4",
@@ -32,6 +33,7 @@
     "electron-builder": "25.1.8",
     "esbuild": "0.24.0",
     "mathjs": "13.2.0",
+    "qrcode": "1.5.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "typescript": "5.6.3",
@@ -76,7 +78,10 @@
         "python3"
       ],
       "recommends": [
-        "xdotool"
+        "xdotool",
+        "imagemagick",
+        "ffmpeg",
+        "poppler-utils"
       ],
       "afterInstall": "packaging/after-install.sh",
       "afterRemove": "packaging/after-remove.sh",
@@ -102,8 +107,28 @@
         "to": "beam-pick-color"
       },
       {
+        "from": "packaging/beam-power",
+        "to": "beam-power"
+      },
+      {
+        "from": "packaging/com.virallens.beam.power.policy",
+        "to": "com.virallens.beam.power.policy"
+      },
+      {
         "from": "gnome-extension",
         "to": "gnome-extension"
+      },
+      {
+        "from": "packaging/beam-browser-host",
+        "to": "beam-browser-host"
+      },
+      {
+        "from": "chrome-extension",
+        "to": "chrome-extension"
+      },
+      {
+        "from": "release/browser-tabs",
+        "to": "browser-tabs"
       }
     ],
     "electronDist": "node_modules/electron/dist",

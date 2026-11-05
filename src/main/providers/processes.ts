@@ -163,6 +163,22 @@ async function waitForExit(pid: number, start: number, ms: number): Promise<bool
 }
 
 /**
+ * AppArmor refused the signal. Snaps (Slack, Firefox…) take signals only from
+ * "unconfined" programs, and the profile Electron's sandbox needs gives Beam
+ * and its children the label "beam", even under pkexec. The user's systemd
+ * is unconfined and owns the same processes, so it sends the signal instead.
+ */
+async function signalThroughSession(pid: number, signal: "SIGTERM" | "SIGKILL"): Promise<string | null> {
+  const { code, stderr } = await runCapture(
+    "systemd-run",
+    ["--user", "--wait", "--collect", "--quiet", "/usr/bin/kill", "-s", signal.slice(3), String(pid)],
+    { timeoutMs: 15_000 },
+  );
+  if (code === 0) return null;
+  return stderr.trim() || `kill failed with code ${code}`;
+}
+
+/**
  * Sends `signal` to one process. Another user's process (root's, say) goes
  * through pkexec, which asks for the password.
  */
@@ -174,6 +190,7 @@ async function sendSignal(proc: Proc, signal: "SIGTERM" | "SIGKILL"): Promise<st
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "ESRCH") return null;
+    if (code === "EACCES") return signalThroughSession(proc.pid, signal);
     if (code !== "EPERM") return (error as Error).message;
   }
   const { code, stderr } = await runCapture(
