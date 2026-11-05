@@ -48,6 +48,7 @@ rm beam_amd64.deb
 | `Ctrl+Super+C` | Center |
 | `Ctrl+Super+Backspace` | Restore |
 | `Ctrl+K` | Actions for the selected item |
+| `Tab` | Next field, on commands that have fields, such as Caffeinate |
 | `Esc` | Go back one step; closes Beam from the home screen |
 
 Any command can get its own hotkey or alias from its action panel (`Ctrl+K`). Shortcuts are registered as GNOME custom keybindings.
@@ -90,6 +91,13 @@ Config lives in `~/.config/beam/config.json`.
 ## Commands
 
 Type a command's name, or a keyword such as `kill` or `bt`. Keys below act on the selected item; `Ctrl+K` lists all of its actions.
+
+### Files
+
+Type part of a file or folder name in the main search. `Enter` opens it, `Ctrl+Enter` Show in Folder, `Ctrl+Y` Quick Look, `Ctrl+O` Open With…, `Ctrl+T` Convert File, `Ctrl+Shift+C` copy path.
+
+- **Quick Look** shows it inside Beam: text, formatted JSON, images, a PDF's first page, or a folder's contents.
+- **Open With…** lists the apps for that file type, then every other app. `Enter` opens the file with the selected app; `Ctrl+Enter` makes that app the default for the type.
 
 ### Processes
 
@@ -253,6 +261,8 @@ On Wayland, apps can't type into other windows, so pasting from Beam copies to t
 | `src/shared/` | Types shared by both |
 | `gnome-extension/` | GNOME Shell helper for window management and Clean Keyboard (D-Bus) |
 | `chrome-extension/` | Chrome extension behind Browser Tabs |
+| `scripts/` | Build helpers: bundling, icons, and packing the signed Chrome extension |
+| `install.sh` | The one-step installer |
 | `packaging/` | .deb install and remove scripts; `beam-fan` and `beam-power` (root helpers) and their polkit policies; `beam-pick-color` (portal color picker); `beam-browser-host` (Chrome native messaging host) |
 
 ## License
