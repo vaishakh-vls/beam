@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { caffeinateStatus, formatDuration, formatRemaining, parseDuration } from "../src/main/caffeinate.ts";
+import { caffeinateStatus, durationFromFields, formatDuration, formatRemaining, parseDuration } from "../src/main/caffeinate.ts";
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -48,4 +48,15 @@ test("time left rounds up", () => {
 test("status beside the commands", () => {
   assert.equal(caffeinateStatus(null, 0), "On until stopped");
   assert.equal(caffeinateStatus(42 * MIN, 0), "On · 42m left");
+});
+
+test("time fields", () => {
+  assert.equal(durationFromFields({ hours: "1", minutes: "30" }), 90 * MIN);
+  assert.equal(durationFromFields({ minutes: "45" }), 45 * MIN);
+  assert.equal(durationFromFields({ hours: "", minutes: "", seconds: "20" }), 20_000);
+  assert.equal(durationFromFields({ hours: "2", minutes: "90", seconds: "30" }), 2 * HOUR + 90 * MIN + 30_000);
+  // Left empty means no timer; typed zeros are a mistake to point out.
+  assert.equal(durationFromFields({}), null);
+  assert.equal(durationFromFields({ hours: " ", minutes: "" }), null);
+  assert.equal(durationFromFields({ minutes: "0" }), 0);
 });

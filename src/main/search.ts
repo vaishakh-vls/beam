@@ -84,11 +84,11 @@ let registry = new Map<string, Entry>();
 /** Views can be slow (nmcli, bluetoothctl); only the newest search may replace the registry. */
 let searchSeq = 0;
 
-export function runAction(itemId: string, actionId: string): RunResult | Promise<RunResult> {
+export function runAction(itemId: string, actionId: string, args?: Record<string, string>): RunResult | Promise<RunResult> {
   const entry = registry.get(itemId);
   const action = entry?.actions.find((a) => a.id === actionId);
   if (!entry || !action) return { type: "error", message: "That item is no longer available." };
-  return action.run();
+  return action.run(args);
 }
 
 /** Every launchable command, used by root search and `beam --run`. */
@@ -267,9 +267,9 @@ function withCommandActions(entry: Entry, ctx: SearchContext): Entry {
   const hotkey = hotkeyFor(ref);
   const tracked: EntryAction[] = entry.actions.map((action) => ({
     ...action,
-    run: () => {
+    run: (args) => {
       recordUse(ref);
-      return action.run();
+      return action.run(args);
     },
   }));
   return {

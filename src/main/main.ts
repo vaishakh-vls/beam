@@ -202,7 +202,9 @@ function ensureAutostart(): void {
 
 function registerIpc(): void {
   ipcMain.handle("beam:search", (_event, query: string, view: View) => search(query, view, context));
-  ipcMain.handle("beam:run", (_event, itemId: string, actionId: string) => runAction(itemId, actionId));
+  ipcMain.handle("beam:run", (_event, itemId: string, actionId: string, args?: Record<string, string>) =>
+    runAction(itemId, actionId, args),
+  );
   ipcMain.handle("beam:submit-form", (_event, formId: string, values: Record<string, string>) =>
     submitForm(formId, values),
   );

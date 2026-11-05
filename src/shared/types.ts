@@ -9,6 +9,14 @@ export interface ActionDef {
   danger?: boolean;
 }
 
+/** A value typed beside the search box while this item is selected, like Raycast's command arguments. */
+export interface ArgDef {
+  name: string;
+  placeholder: string;
+  /** Accept digits only. */
+  numeric?: boolean;
+}
+
 export interface ResultItem {
   id: string;
   title: string;
@@ -21,6 +29,8 @@ export interface ResultItem {
   preview?: string;
   /** Image shown in the preview pane above the text: a GIF, a color swatch. */
   previewImage?: string;
+  /** Fields shown in the search bar while selected; Tab moves between them. */
+  args?: ArgDef[];
   /** First action runs on Enter, second on Ctrl+Enter; all appear in Ctrl+K. */
   actions: ActionDef[];
 }
@@ -112,7 +122,7 @@ export interface ShowPayload {
 
 export interface BeamApi {
   search(query: string, view: View): Promise<SearchResponse>;
-  run(itemId: string, actionId: string): Promise<RunResult>;
+  run(itemId: string, actionId: string, args?: Record<string, string>): Promise<RunResult>;
   submitForm(formId: string, values: Record<string, string>): Promise<RunResult>;
   hide(): void;
   onShow(callback: (payload: ShowPayload) => void): void;

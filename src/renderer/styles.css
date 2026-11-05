@@ -82,6 +82,7 @@ body,
 
 .search-input {
   flex: 1;
+  min-width: 0;
   height: 100%;
   border: none;
   outline: none;
@@ -95,6 +96,28 @@ body,
 
 .search-input::placeholder {
   color: var(--text-faint);
+}
+
+.arg-input {
+  flex: none;
+  width: 78px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  outline: none;
+  background: var(--kbd-bg);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.arg-input:focus {
+  border-color: var(--accent);
+}
+
+.arg-input::placeholder {
+  color: var(--text-dim);
 }
 
 .screen-title {

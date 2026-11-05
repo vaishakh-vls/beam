@@ -1,7 +1,8 @@
-import type { ActionDef, ResultItem, RunResult, ViewInfo } from "../shared/types";
+import type { ActionDef, ArgDef, ResultItem, RunResult, ViewInfo } from "../shared/types";
 
 export interface EntryAction extends ActionDef {
-  run: () => RunResult | Promise<RunResult>;
+  /** `args` holds what was typed in the entry's fields; hotkeys and `beam --run` pass none. */
+  run: (args?: Record<string, string>) => RunResult | Promise<RunResult>;
 }
 
 /** What providers return: a result item plus the code behind its actions. */
@@ -13,6 +14,7 @@ export interface Entry {
   accessory?: string;
   preview?: string;
   previewImage?: string;
+  args?: ArgDef[];
   /** Extra words that should match in search but are not displayed. */
   keywords?: string[];
   /** Set for launchable commands, enabling aliases, hotkeys and ranking. */
@@ -29,6 +31,7 @@ export function toResultItem(entry: Entry): ResultItem {
     accessory: entry.accessory,
     preview: entry.preview,
     previewImage: entry.previewImage,
+    args: entry.args,
     actions: entry.actions.map(({ id, title, shortcut, danger }) => ({
       id,
       title,

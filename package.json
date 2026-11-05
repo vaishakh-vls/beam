@@ -1,7 +1,7 @@
 {
   "name": "beam",
   "productName": "Beam",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A Raycast-style launcher for Ubuntu: apps, files, clipboard history, snippets, window management, browser tabs, developer tools, file conversion and system controls.",
   "homepage": "https://beam.local",
   "main": "dist/main/main.js",
@@ -9,7 +9,7 @@
     "name": "Vaishakh",
     "email": "vaishakh@perssonify.com"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "icons": "node scripts/make-icons.mjs",
@@ -129,6 +129,14 @@
       {
         "from": "release/browser-tabs",
         "to": "browser-tabs"
+      },
+      {
+        "from": "LICENSE",
+        "to": "licenses/Beam.txt"
+      },
+      {
+        "from": "src/renderer/fonts/LICENSE.txt",
+        "to": "licenses/Inter-font.txt"
       }
     ],
     "electronDist": "node_modules/electron/dist",

@@ -47,6 +47,18 @@ export function parseDuration(input: string): number | null {
   return positive(total);
 }
 
+/**
+ * Milliseconds from the Hours, Minutes and Seconds fields. Blank fields count
+ * as zero. Null when all are blank, which means no timer; 0 when only zeros
+ * were typed, which is a mistake rather than "no timer".
+ */
+export function durationFromFields(fields: { hours?: string; minutes?: string; seconds?: string }): number | null {
+  const { hours = "", minutes = "", seconds = "" } = fields;
+  if (!hours.trim() && !minutes.trim() && !seconds.trim()) return null;
+  const ms = (Number(hours) || 0) * HOUR + (Number(minutes) || 0) * MINUTE + (Number(seconds) || 0) * SECOND;
+  return Number.isFinite(ms) ? ms : 0;
+}
+
 function positive(ms: number): number | null {
   return Number.isFinite(ms) && ms >= SECOND ? Math.round(ms) : null;
 }

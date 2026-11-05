@@ -2,13 +2,21 @@ import { spawn, type ChildProcess } from "node:child_process";
 import {
   MAX_DURATION_MS,
   caffeinateStatus,
+  durationFromFields,
   formatDuration,
   formatRemaining,
   parseDuration,
 } from "../caffeinate";
 import { HIDE, type Entry, type Section, type ViewProvider } from "../entry";
 import { childEnv, notify } from "../system";
-import type { RunResult } from "../../shared/types";
+import type { ArgDef, RunResult } from "../../shared/types";
+
+/** Press Tab after typing the command: hours, Tab, minutes, Enter. */
+const TIME_ARGS: ArgDef[] = [
+  { name: "hours", placeholder: "Hours", numeric: true },
+  { name: "minutes", placeholder: "Minutes", numeric: true },
+  { name: "seconds", placeholder: "Seconds", numeric: true },
+];
 
 const PRESETS: Array<{ id: string; label: string; minutes: number }> = [
   { id: "15m", label: "15 minutes", minutes: 15 },
@@ -125,6 +133,15 @@ function startFor(durationMs: number | null, label: string): RunResult {
   return HIDE;
 }
 
+/** Starts for the time typed in the fields, or returns null when they were left empty. */
+function startFromFields(args?: Record<string, string>): RunResult | null {
+  const ms = durationFromFields(args ?? {});
+  if (ms === null) return null;
+  if (ms === 0) return { type: "error", message: "Enter a time above zero, or leave the fields empty" };
+  if (ms > MAX_DURATION_MS) return { type: "error", message: "Up to 24 hours; leave the fields empty to stay on until stopped" };
+  return startFor(ms, formatDuration(ms));
+}
+
 function decaffeinate(): RunResult {
   if (stopCaffeinate()) notify("Caffeinate off", "Your laptop can sleep again.");
   else notify("Caffeinate is already off");
@@ -139,16 +156,17 @@ export function caffeinateCommands(_hide: () => void): Entry[] {
       id: "cmd:caffeinate",
       ref: "cmd:caffeinate",
       title: "Caffeinate",
-      subtitle: "System",
+      subtitle: session ? "Tab to change the time, Enter to stop" : "Tab to set a time, Enter to stay on until stopped",
       icon: "☕",
       accessory: current ?? "Command",
       keywords,
+      args: TIME_ARGS,
       actions: [
         {
           id: "run",
           title: session ? "Decaffeinate" : "Caffeinate",
           shortcut: "↵",
-          run: () => (session ? decaffeinate() : startFor(null, "")),
+          run: (args) => startFromFields(args) ?? (session ? decaffeinate() : startFor(null, "")),
         },
       ],
     },
@@ -156,11 +174,19 @@ export function caffeinateCommands(_hide: () => void): Entry[] {
       id: "cmd:caffeinate-for",
       ref: "cmd:caffeinate-for",
       title: "Caffeinate For…",
-      subtitle: "System",
+      subtitle: "Tab to set a time, Enter to pick from a list",
       icon: "⏲️",
       accessory: current ?? "Command",
-      keywords: [...keywords, "timer", "duration"],
-      actions: [{ id: "run", title: "Run Command", shortcut: "↵", run: () => ({ type: "view", view: "caffeinate" }) }],
+      keywords: [...keywords, "timer", "duration", "hours", "minutes", "limit"],
+      args: TIME_ARGS,
+      actions: [
+        {
+          id: "run",
+          title: "Run Command",
+          shortcut: "↵",
+          run: (args) => startFromFields(args) ?? { type: "view", view: "caffeinate" },
+        },
+      ],
     },
     {
       id: "cmd:decaffeinate",

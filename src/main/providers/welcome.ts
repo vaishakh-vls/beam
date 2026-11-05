@@ -144,8 +144,8 @@ const SYSTEM: Feature[] = [
     title: "Caffeinate",
     subtitle: "Keep the laptop awake",
     icon: "☕",
-    about: "Stops the screen from locking and the laptop from sleeping, until you stop it or for a set time.",
-    tryView: "caffeinate",
+    about: "Stops the screen from locking and the laptop from sleeping.\n\nIn the main search, type caffeinate, then:\n  Tab   hours\n  Tab   minutes\n  Enter start\n\nLeave the times empty to stay on until you stop it.",
+    tryQuery: "caffeinate",
     keywords: ["awake", "sleep"],
   },
   {

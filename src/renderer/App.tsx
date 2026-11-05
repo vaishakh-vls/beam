@@ -38,7 +38,9 @@ export function App() {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [toast, setToast] = useState<{ text: string; error: boolean } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [argValues, setArgValues] = useState<Record<string, string>>({});
   const inputRef = useRef<HTMLInputElement>(null);
+  const argRefs = useRef<Array<HTMLInputElement | null>>([]);
   const searchSeq = useRef(0);
 
   const screen = stack[stack.length - 1];
@@ -47,6 +49,14 @@ export function App() {
   const selected = items[selectedIndex] ?? items[0] ?? null;
   const selectedId = useRef<string | undefined>(undefined);
   selectedId.current = selected?.id;
+  const args = screen.kind === "list" ? selected?.args : undefined;
+
+  // Field values belong to the selected item, and focus can't stay on a field that has gone.
+  useEffect(() => {
+    setArgValues({});
+    const focused = document.activeElement;
+    if (!focused || focused === document.body || focused.classList.contains("arg-input")) inputRef.current?.focus();
+  }, [selected?.id]);
 
   const refresh = useCallback(async (q: string, v: View, keepSelection = false) => {
     const seq = ++searchSeq.current;
@@ -132,9 +142,13 @@ export function App() {
     async (item: ResultItem | null, action: ActionDef | undefined) => {
       if (!item || !action) return;
       setActionsOpen(false);
-      applyResult(await window.beam.run(item.id, action.id));
+      const fields = item.args?.length && item.id === selectedId.current ? argValues : undefined;
+      const result = await window.beam.run(item.id, action.id, fields);
+      // After an error the values stay, so a typo can be corrected.
+      if (result.type !== "error") setArgValues({});
+      applyResult(result);
     },
-    [applyResult],
+    [applyResult, argValues],
   );
 
   // onShow is registered once, so it reads the latest applyResult via a ref.
@@ -147,6 +161,7 @@ export function App() {
       setToast(null);
       setFormError(null);
       setQuery("");
+      setArgValues({});
       setStack([payload.view === "root" ? ROOT : { kind: "list", view: payload.view }]);
       if (payload.result) applyResultRef.current(payload.result);
       window.setTimeout(() => inputRef.current?.focus(), 0);
@@ -168,6 +183,21 @@ export function App() {
 
   function onKeyDown(event: React.KeyboardEvent) {
     if (actionsOpen) return;
+    const fields = args?.length ? [inputRef.current, ...argRefs.current.slice(0, args.length)] : [];
+    const field = fields.indexOf(event.target as HTMLInputElement);
+    if (event.key === "Tab" && fields.length) {
+      event.preventDefault();
+      fields[(field + (event.shiftKey ? -1 : 1) + fields.length) % fields.length]?.focus();
+      return;
+    }
+    // In a field Backspace edits, and an empty field steps back to the previous one.
+    if (event.key === "Backspace" && field > 0) {
+      if (!fields[field]?.value) {
+        event.preventDefault();
+        fields[field - 1]?.focus();
+      }
+      return;
+    }
     // Esc steps back one screen at a time and closes Beam from the home screen.
     // Backspace on an empty search also goes back.
     if (event.key === "Escape") {
@@ -236,6 +266,23 @@ export function App() {
         ) : (
           <div className="screen-title">{title}</div>
         )}
+        {args?.map((arg, i) => (
+          <input
+            key={`${selected?.id}:${arg.name}`}
+            ref={(element) => {
+              argRefs.current[i] = element;
+            }}
+            className="arg-input"
+            spellCheck={false}
+            inputMode={arg.numeric ? "numeric" : undefined}
+            placeholder={arg.placeholder}
+            value={argValues[arg.name] ?? ""}
+            onChange={(e) => {
+              const value = arg.numeric ? e.target.value.replace(/\D/g, "") : e.target.value;
+              setArgValues((values) => ({ ...values, [arg.name]: value }));
+            }}
+          />
+        ))}
         {screen.kind === "list" && title && <span className="view-badge">{title}</span>}
       </header>
 
@@ -246,7 +293,10 @@ export function App() {
               sections={response.sections}
               selectedIndex={selectedIndex}
               grid={response.info.grid}
-              onSelect={setSelectedIndex}
+              onSelect={(index) => {
+                // A nudged mouse mustn't move the selection away from fields being filled in.
+                if (!document.activeElement?.classList.contains("arg-input")) setSelectedIndex(index);
+              }}
               onRun={(item) => void runAction(item, item.actions[0])}
             />
             {response.info.preview && (
@@ -292,6 +342,13 @@ export function App() {
             <>
               <span>Back</span>
               <Kbd shortcut="Esc" />
+            </>
+          )}
+          {primary && Boolean(args?.length) && (
+            <>
+              <span>Next Field</span>
+              <Kbd shortcut="Tab" />
+              <span className="footer-divider" />
             </>
           )}
           {primary && (

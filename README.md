@@ -6,28 +6,34 @@ Built with Electron, React and TypeScript.
 
 ## Install
 
-One step, on Ubuntu 22.04 or 24.04 with GNOME:
+One step, on Ubuntu 24.04 or newer with GNOME (64-bit Intel/AMD):
 
 ```bash
-gh api -H "Accept: application/vnd.github.raw" repos/vaishakh-vls/beam/contents/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/vaishakh-vls/beam/main/install.sh | bash
 ```
+
+No `curl`? Use `wget -qO- https://raw.githubusercontent.com/vaishakh-vls/beam/main/install.sh | bash`.
 
 That downloads the newest release, installs it with everything it needs (`apt` asks for your password), and starts Beam in the background. Press `Super+Space`: the first time, Beam opens a welcome tour of everything it can do; it stays available as **Welcome to Beam**.
 
 Other ways:
 
-- **Someone sent you the .deb:** `sudo apt install ./beam_0.2.0_amd64.deb`, then open Beam from the app grid (or log out and in; it starts at login).
+- **Download the package:** [beam_amd64.deb](https://github.com/vaishakh-vls/beam/releases/latest/download/beam_amd64.deb), then `sudo apt install ./beam_amd64.deb` and open Beam from the app grid (or log out and in; it starts at login).
 - **From a checkout:** `./install.sh` (newest release), `./install.sh path/to/beam.deb`, or `./install.sh --build` (builds with Node.js 20+ first).
-
-The repository is private, so `gh` must be signed in (`gh auth login`) with an account that has access.
 
 Log out and back in once after installing so GNOME loads Beam's GNOME Shell helper, which does window management and Clean Keyboard. GNOME on Wayland loads new or updated extension code only at login, so log out again after an upgrade that updates the helper. Restart Chrome once as well, for Browser Tabs.
 
+Fan Control and the charge limit are for ThinkPads; Browser Tabs is for Google Chrome. The rest works on any Ubuntu laptop with GNOME.
+
 ### Publishing a release
+
+The asset is named `beam_amd64.deb` so the download link above always gets the newest release. Build with the Chrome extension signing key in place (see [Browser Tabs](#browser-tabs)).
 
 ```bash
 npm ci && npm run dist
-gh release create v0.2.0 release/beam_0.2.0_amd64.deb --title "Beam 0.2.0" --notes "..."
+cp release/beam_0.2.1_amd64.deb beam_amd64.deb
+gh release create v0.2.1 beam_amd64.deb --title "Beam 0.2.1" --notes "..."
+rm beam_amd64.deb
 ```
 
 ## Shortcuts
@@ -170,8 +176,8 @@ Commands: **Pick Color** and **Color History**. Pick Color hides Beam and opens 
 
 Keeps the laptop awake with an idle and suspend inhibitor (`gnome-session-inhibit`), released when you stop it or quit Beam. While it's on, the commands show the time left.
 
-- **Caffeinate**: on until stopped; when already on, it turns it off.
-- **Caffeinate For…**: 15 minutes to 8 hours, or type a duration such as `45m`, `1.5h` or `2h30m` (a bare number is minutes), up to 24 hours. Picking one while on changes the timer.
+- **Caffeinate**: set a time beside the search box: type `caffeinate`, `Tab` to Hours, `Tab` to Minutes, `Tab` to Seconds, `Enter`. With the fields empty it stays on until stopped, and when already on `Enter` turns it off.
+- **Caffeinate For…**: the same fields; with them empty, `Enter` lists 15 minutes to 8 hours, where you can also type a duration such as `45m`, `1.5h` or `2h30m` (a bare number is minutes). Timers go up to 24 hours, and setting one while on changes the time.
 - **Decaffeinate**: off.
 
 ### Speed test
@@ -248,3 +254,7 @@ On Wayland, apps can't type into other windows, so pasting from Beam copies to t
 | `gnome-extension/` | GNOME Shell helper for window management and Clean Keyboard (D-Bus) |
 | `chrome-extension/` | Chrome extension behind Browser Tabs |
 | `packaging/` | .deb install and remove scripts; `beam-fan` and `beam-power` (root helpers) and their polkit policies; `beam-pick-color` (portal color picker); `beam-browser-host` (Chrome native messaging host) |
+
+## License
+
+[MIT](LICENSE). The bundled Inter font is under the SIL Open Font License (`src/renderer/fonts/LICENSE.txt`).
