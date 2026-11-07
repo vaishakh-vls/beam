@@ -90,6 +90,8 @@ const RESIZE_STEP = 0.1;
 
 const CONFETTI_PIECES = 160;
 const CONFETTI_MS = 4500;
+/** Each press adds a burst on top of the ones still falling, up to this many at once. */
+const MAX_CONFETTI_BURSTS = 8;
 const CONFETTI_COLORS = ["#ff3b30", "#ff9500", "#ffcc00", "#34c759", "#00c7be", "#0a84ff", "#5e5ce6", "#bf5af2", "#ff2d55"];
 
 function clamp(value, min, max) {
@@ -115,6 +117,7 @@ function isBeam(win) {
 export default class BeamWindowsExtension extends Extension {
   enable() {
     this._lock = null;
+    this._confettiShows = new Set();
     this._lastWindow = null;
     this._previous = new WeakMap();
     this._focusId = global.display.connect("notify::focus-window", () => {
@@ -131,7 +134,7 @@ export default class BeamWindowsExtension extends Extension {
   disable() {
     // Also runs when the screen locks, so a lock can never outlive the session.
     this._unlockKeyboard();
-    this._stopConfetti();
+    for (const show of [...this._confettiShows]) this._stopConfetti(show);
     if (this._focusId) global.display.disconnect(this._focusId);
     this._dbus?.unexport();
     if (this._ownerId) Gio.bus_unown_name(this._ownerId);
@@ -151,12 +154,14 @@ export default class BeamWindowsExtension extends Extension {
     }
   }
 
-  /** D-Bus method: confetti bursts from the bottom corners for a few seconds. Returns [ok, message]. */
+  /**
+   * D-Bus method: confetti bursts from the bottom corners for a few seconds,
+   * on top of any still falling. Returns [ok, message].
+   */
   Confetti() {
     try {
       return this._confetti();
     } catch (error) {
-      this._stopConfetti();
       return [false, String(error)];
     }
   }
@@ -534,7 +539,7 @@ export default class BeamWindowsExtension extends Extension {
 
   _confetti() {
     if (Main.sessionMode.isLocked) return [false, "The screen is locked"];
-    this._stopConfetti();
+    if (this._confettiShows.size >= MAX_CONFETTI_BURSTS) return [false, "That's plenty of confetti for now"];
     const monitor = Main.layoutManager.currentMonitor ?? Main.layoutManager.primaryMonitor;
     // Above every window and the top bar; never takes clicks or focus.
     const layer = new Clutter.Actor({
@@ -546,6 +551,19 @@ export default class BeamWindowsExtension extends Extension {
     });
     Main.uiGroup.add_child(layer);
     Main.uiGroup.set_child_above_sibling(layer, null);
+    const show = { layer, timeline: null };
+    this._confettiShows.add(show);
+    try {
+      this._launchConfetti(show, monitor);
+    } catch (error) {
+      this._stopConfetti(show);
+      throw error;
+    }
+    return [true, `Confetti (${this._confettiShows.size} at once)`];
+  }
+
+  _launchConfetti(show, monitor) {
+    const { layer } = show;
 
     // Distances suit a 1000 px tall screen and scale with the real one.
     const scaleY = monitor.height / 1000;
@@ -604,17 +622,14 @@ export default class BeamWindowsExtension extends Extension {
       const fadeStart = CONFETTI_MS * 0.7;
       if (elapsed > fadeStart) layer.opacity = Math.round(255 * Math.max(0, 1 - (elapsed - fadeStart) / (CONFETTI_MS - fadeStart)));
     });
-    timeline.connect("completed", () => this._stopConfetti());
-    this._confettiShow = { layer, timeline };
+    timeline.connect("completed", () => this._stopConfetti(show));
+    show.timeline = timeline;
     timeline.start();
-    return [true, "Confetti"];
   }
 
-  _stopConfetti() {
-    const show = this._confettiShow;
-    this._confettiShow = null;
-    if (!show) return;
-    show.timeline.stop();
+  _stopConfetti(show) {
+    if (!this._confettiShows?.delete(show)) return;
+    show.timeline?.stop();
     show.layer.destroy();
   }
 

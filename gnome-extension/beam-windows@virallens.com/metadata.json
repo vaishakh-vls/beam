@@ -3,5 +3,5 @@
   "name": "Beam Window Management",
   "description": "Lets the Beam launcher move and resize windows (halves, thirds, fourths, sixths, displays, desktops), lock the keyboard for cleaning and show confetti. Required for Beam's window, Clean Keyboard and Confetti commands on Wayland.",
   "shell-version": ["45", "46", "47", "48"],
-  "version": 4
+  "version": 5
 }
