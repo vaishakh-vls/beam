@@ -282,6 +282,28 @@ export default class BeamWindowsExtension extends Extension {
         if (win.is_fullscreen()) win.unmake_fullscreen();
         else win.make_fullscreen();
         break;
+      case "next-desktop":
+      case "previous-desktop": {
+        if (win.is_on_all_workspaces()) return [false, "This window is on every desktop"];
+        const index = win.get_workspace().index() + (action === "next-desktop" ? 1 : -1);
+        if (index < 0) return [false, "Already on the first desktop"];
+        // With dynamic desktops (GNOME's default) the last one is always
+        // empty, so moving there makes a new desktop for the window.
+        const manager = global.workspace_manager;
+        if (index >= manager.get_n_workspaces()) return [false, "Already on the last desktop"];
+        // GNOME removes a desktop once it's empty, so a window alone on its
+        // desktop gains nothing by moving onto the empty one after it.
+        const others = win.get_workspace().list_windows()
+          .filter((other) => other !== win && !other.is_on_all_workspaces() && !other.skip_taskbar);
+        if (others.length === 0 && index === manager.get_n_workspaces() - 1 && Meta.prefs_get_dynamic_workspaces())
+          return [false, "This window already has its own desktop"];
+        // Moves there with the window, focused. (Activating a window on
+        // another desktop only marks it as wanting attention.)
+        const workspace = manager.get_workspace_by_index(index);
+        win.change_workspace(workspace);
+        workspace.activate_with_focus(win, global.get_current_time());
+        return [true, action];
+      }
       case "next-display":
       case "previous-display": {
         const count = global.display.get_n_monitors();

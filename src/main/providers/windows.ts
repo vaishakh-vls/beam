@@ -16,7 +16,7 @@ interface WindowCommand {
   keywords?: string[];
 }
 
-/** Same command set as Raycast's Window Management. */
+/** Raycast's Window Management commands, plus moving between desktops. */
 export const WINDOW_COMMANDS: WindowCommand[] = [
   { action: "left-half", title: "Left Half", icon: "◧" },
   { action: "right-half", title: "Right Half", icon: "◨" },
@@ -40,6 +40,8 @@ export const WINDOW_COMMANDS: WindowCommand[] = [
   { action: "restore", title: "Restore", icon: "↺", keywords: ["undo", "previous size"] },
   { action: "minimize", title: "Minimize", icon: "▁", keywords: ["hide"] },
   { action: "toggle-fullscreen", title: "Toggle Fullscreen", icon: "⛶" },
+  { action: "next-desktop", title: "Next Desktop", icon: "⇉", keywords: ["move to next desktop", "workspace", "space"] },
+  { action: "previous-desktop", title: "Previous Desktop", icon: "⇇", keywords: ["move to previous desktop", "workspace", "space"] },
   { action: "next-display", title: "Next Display", icon: "⇥", keywords: ["monitor", "screen"] },
   { action: "previous-display", title: "Previous Display", icon: "⇤", keywords: ["monitor", "screen"] },
 ];

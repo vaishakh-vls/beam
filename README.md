@@ -65,7 +65,7 @@ Any command can get its own hotkey or alias from its action panel (`Ctrl+K`). Sh
 - **Calculator and unit conversion** (mathjs)
 - **Currency conversion**: `10 usd`, `$10 to eur`, `2 lakh inr in usd`. Daily rates from open.er-api.com. Converts to `"currency"` in the config, or with `"auto"` to your region's currency (from the time zone).
 - **Script commands** in Raycast's `@raycast.*` format, in `~/.config/beam/scripts`
-- **Window management**: 24 layouts (halves, quarters, thirds, displays...) via a bundled GNOME Shell extension (`gnome-extension/`)
+- **Window management**: 24 layouts (halves, quarters, thirds, displays...) via a bundled GNOME Shell extension (`gnome-extension/`). **Next Desktop** / **Previous Desktop** move the window you were using to the next or previous desktop and take you with it; from the last one, Next Desktop gives it a new desktop of its own.
 - **Processes**: list running processes by CPU or memory, and quit or force-kill them
 - **Fan Control** (ThinkPad): fan speed and temperatures, and fan levels from Auto to Full Speed
 - **Spotify**: now playing, playback controls and search, via playerctl
