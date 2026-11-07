@@ -4,7 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, ipcMain, Menu, net, protocol, screen, Tray } from "electron";
 import { parseRunArg } from "./cli";
-import { loadConfig } from "./config";
+import { config, loadConfig } from "./config";
 import { submitForm } from "./forms";
 import { ICON_SCHEME, iconFileFromUrl } from "./icons";
 import { syncKeybinds } from "./keybinds";
@@ -162,6 +162,7 @@ const context: SearchContext = {
 };
 
 function createTray(): void {
+  if (!config().trayIcon) return;
   const iconPath = path.join(__dirname, "../../assets/tray.png");
   if (!fs.existsSync(iconPath)) return;
   tray = new Tray(iconPath);

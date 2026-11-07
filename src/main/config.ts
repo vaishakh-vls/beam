@@ -38,6 +38,8 @@ export interface BeamConfig {
   giphyApiKey: string;
   /** Beam's window theme: a built-in id such as "nord", "system" to follow GNOME's dark style, or "user:<file>" for ~/.config/beam/themes/<file>.json. */
   theme: string;
+  /** Show Beam's icon in the top bar (its menu opens Beam, clipboard history and snippets, reloads and quits). */
+  trayIcon: boolean;
   /** Refs of the default keybinds already offered, so a new default is added once and a removed one stays removed. */
   offeredKeybinds: string[];
 }
@@ -63,6 +65,7 @@ const DEFAULT_CONFIG: BeamConfig = {
   currency: "auto",
   giphyApiKey: "",
   theme: "beam-dark",
+  trayIcon: true,
   offeredKeybinds: [],
 };
 DEFAULT_CONFIG.offeredKeybinds = DEFAULT_CONFIG.keybinds.map((bind) => bind.ref);

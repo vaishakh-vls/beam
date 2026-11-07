@@ -93,7 +93,7 @@ Any command can get its own hotkey or alias from its action panel (`Ctrl+K`). Sh
 - **Fonts**: browse installed fonts with live previews
 - **Web search fallbacks**
 
-Config lives in `~/.config/beam/config.json`.
+Config lives in `~/.config/beam/config.json`. Set `"trayIcon": false` there to hide Beam's top-bar icon (its menu's commands are all in Beam itself; restart Beam after changing it).
 
 ## Commands
 
