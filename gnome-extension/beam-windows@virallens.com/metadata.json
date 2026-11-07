@@ -1,7 +1,7 @@
 {
   "uuid": "beam-windows@virallens.com",
   "name": "Beam Window Management",
-  "description": "Lets the Beam launcher move and resize windows (halves, quarters, thirds, center, displays, desktops) and lock the keyboard for cleaning. Required for Beam's window and Clean Keyboard commands on Wayland.",
+  "description": "Lets the Beam launcher move and resize windows (halves, thirds, fourths, sixths, displays, desktops), lock the keyboard for cleaning and show confetti. Required for Beam's window, Clean Keyboard and Confetti commands on Wayland.",
   "shell-version": ["45", "46", "47", "48"],
-  "version": 3
+  "version": 4
 }

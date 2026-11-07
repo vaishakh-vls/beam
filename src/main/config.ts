@@ -38,6 +38,8 @@ export interface BeamConfig {
   giphyApiKey: string;
   /** Beam's window theme: a built-in id such as "nord", "system" to follow GNOME's dark style, or "user:<file>" for ~/.config/beam/themes/<file>.json. */
   theme: string;
+  /** Refs of the default keybinds already offered, so a new default is added once and a removed one stays removed. */
+  offeredKeybinds: string[];
 }
 
 const DEFAULT_CONFIG: BeamConfig = {
@@ -50,6 +52,7 @@ const DEFAULT_CONFIG: BeamConfig = {
     { keys: "Ctrl+Super+Down", ref: "window:reasonable-size" },
     { keys: "Ctrl+Super+C", ref: "window:center" },
     { keys: "Ctrl+Super+Backspace", ref: "window:restore" },
+    { keys: "Super+Shift+C", ref: "cmd:confetti" },
   ],
   aliases: {},
   fileSearchRoots: ["."],
@@ -60,7 +63,42 @@ const DEFAULT_CONFIG: BeamConfig = {
   currency: "auto",
   giphyApiKey: "",
   theme: "beam-dark",
+  offeredKeybinds: [],
 };
+DEFAULT_CONFIG.offeredKeybinds = DEFAULT_CONFIG.keybinds.map((bind) => bind.ref);
+
+/** The default keybinds of Beam 0.2.2 and earlier, which configs from then have already been given. */
+const FIRST_DEFAULT_REFS = [
+  "toggle",
+  "view:clipboard",
+  "window:left-half",
+  "window:right-half",
+  "window:maximize",
+  "window:reasonable-size",
+  "window:center",
+  "window:restore",
+];
+
+/**
+ * Adds the default keybinds not offered before, unless their command or keys
+ * are already bound. Returns the new list and what was added.
+ */
+export function offerNewKeybinds(
+  keybinds: Keybind[],
+  offered: string[],
+  defaults: Keybind[],
+): { keybinds: Keybind[]; added: Keybind[] } {
+  const result = [...keybinds];
+  const added: Keybind[] = [];
+  for (const bind of defaults) {
+    if (offered.includes(bind.ref)) continue;
+    const taken = result.some((other) => other.ref === bind.ref || other.keys.toLowerCase() === bind.keys.toLowerCase());
+    if (taken) continue;
+    result.push(bind);
+    added.push(bind);
+  }
+  return { keybinds: result, added };
+}
 
 const EXAMPLE_SCRIPT = `#!/bin/bash
 
@@ -94,6 +132,13 @@ export function loadConfig(): BeamConfig {
   try {
     const raw = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8"));
     current = { ...structuredClone(DEFAULT_CONFIG), ...raw };
+    if (Array.isArray(raw.keybinds)) {
+      const offered: string[] = Array.isArray(raw.offeredKeybinds) ? raw.offeredKeybinds : FIRST_DEFAULT_REFS;
+      const { keybinds } = offerNewKeybinds(raw.keybinds, offered, DEFAULT_CONFIG.keybinds);
+      current.keybinds = keybinds;
+      current.offeredKeybinds = [...new Set([...offered, ...DEFAULT_CONFIG.offeredKeybinds])];
+      if (keybinds.length !== raw.keybinds.length || current.offeredKeybinds.length !== offered.length) saveConfig();
+    }
   } catch (error) {
     console.error(`beam: invalid ${CONFIG_FILE}, using defaults:`, error);
     current = structuredClone(DEFAULT_CONFIG);

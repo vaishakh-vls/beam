@@ -47,6 +47,7 @@ rm beam_amd64.deb
 | `Ctrl+Super+↓` | Reasonable size |
 | `Ctrl+Super+C` | Center |
 | `Ctrl+Super+Backspace` | Restore |
+| `Super+Shift+C` | Confetti |
 | `Ctrl+K` | Actions for the selected item |
 | `Tab` | Next field, on commands that have fields, such as Caffeinate |
 | `Esc` | Go back one step; closes Beam from the home screen |
@@ -65,7 +66,13 @@ Any command can get its own hotkey or alias from its action panel (`Ctrl+K`). Sh
 - **Calculator and unit conversion** (mathjs)
 - **Currency conversion**: `10 usd`, `$10 to eur`, `2 lakh inr in usd`. Daily rates from open.er-api.com. Converts to `"currency"` in the config, or with `"auto"` to your region's currency (from the time zone).
 - **Script commands** in Raycast's `@raycast.*` format, in `~/.config/beam/scripts`
-- **Window management**: 24 layouts (halves, quarters, thirds, displays...) via a bundled GNOME Shell extension (`gnome-extension/`). **Next Desktop** / **Previous Desktop** move the window you were using to the next or previous desktop and take you with it; from the last one, Next Desktop gives it a new desktop of its own.
+- **Window management**: everything in Raycast's Window Management except Rename Desktop (GNOME shows desktop names nowhere), via a bundled GNOME Shell extension (`gnome-extension/`):
+  - Halves, Center Half, quarters, thirds, Center Two Thirds, fourths, three fourths and sixths
+  - Maximize, Almost Maximize, Maximize Height/Width, Reasonable Size, Make Larger/Smaller (10% of the screen a step), Center, Restore, Minimize, Toggle Fullscreen
+  - Move Up/Down/Left/Right to a screen edge; **Move Window** and **Resize Window** take the values in fields beside the search box (`Tab` between X and Y, or width and height)
+  - Minimize on This Display; Focus Next/Previous App Window
+  - Next/Previous Display; **Next Desktop** / **Previous Desktop** move the window you were using to the next or previous desktop and take you with it (from the last one, it gets a new desktop of its own); Open Desktop 1–9, Move to Desktop 1–9, Close Desktop (the current one, or 1–9; its windows move to the desktop beside it)
+- **Confetti** (`Super+Shift+C`): confetti bursts from the bottom corners of the screen, drawn by the GNOME extension above every window; it takes no clicks or focus and is gone after 4.5 seconds
 - **Processes**: list running processes by CPU or memory, and quit or force-kill them
 - **Fan Control** (ThinkPad): fan speed and temperatures, and fan levels from Auto to Full Speed
 - **Spotify**: now playing, playback controls and search, via playerctl

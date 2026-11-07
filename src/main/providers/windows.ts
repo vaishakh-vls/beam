@@ -4,6 +4,7 @@ import path from "node:path";
 import { app } from "electron";
 import { HIDE, type Entry } from "../entry";
 import { isGnome, notify, runCapture } from "../system";
+import type { ArgDef } from "../../shared/types";
 
 const UUID = "beam-windows@virallens.com";
 const BUS_NAME = "org.virallens.BeamWindows";
@@ -14,12 +15,42 @@ interface WindowCommand {
   title: string;
   icon: string;
   keywords?: string[];
+  /** Fields typed beside the search box; `value` turns them into the action's value. */
+  args?: ArgDef[];
+  value?: (args: Record<string, string>) => string | null;
 }
 
-/** Raycast's Window Management commands, plus moving between desktops. */
+const SIZE_KEYWORDS = ["resize", "size"];
+
+function desktopCommands(): WindowCommand[] {
+  const commands: WindowCommand[] = [];
+  for (let n = 1; n <= 9; n++) {
+    commands.push({ action: `open-desktop:${n}`, title: `Open Desktop ${n}`, icon: "🖥", keywords: ["switch to desktop", `desktop ${n}`, "workspace", "space"] });
+  }
+  for (let n = 1; n <= 9; n++) {
+    commands.push({ action: `move-to-desktop:${n}`, title: `Move to Desktop ${n}`, icon: "⇉", keywords: [`desktop ${n}`, "workspace", "space"] });
+  }
+  commands.push({ action: "close-desktop", title: "Close Desktop", icon: "✕", keywords: ["current desktop", "active desktop", "workspace", "space"] });
+  for (let n = 1; n <= 9; n++) {
+    commands.push({ action: `close-desktop:${n}`, title: `Close Desktop ${n}`, icon: "✕", keywords: [`desktop ${n}`, "workspace", "space"] });
+  }
+  return commands;
+}
+
+/** Two numbers typed into fields `a` and `b`, as "a,b", or null when either is missing. */
+function pair(a: string, b: string): (args: Record<string, string>) => string | null {
+  return (args) => {
+    const first = (args[a] ?? "").trim();
+    const second = (args[b] ?? "").trim();
+    return /^\d+$/.test(first) && /^\d+$/.test(second) ? `${first},${second}` : null;
+  };
+}
+
+/** Everything in Raycast's Window Management, except Rename Desktop: GNOME shows desktop names nowhere. */
 export const WINDOW_COMMANDS: WindowCommand[] = [
   { action: "left-half", title: "Left Half", icon: "◧" },
   { action: "right-half", title: "Right Half", icon: "◨" },
+  { action: "center-half", title: "Center Half", icon: "◫" },
   { action: "top-half", title: "Top Half", icon: "⬒" },
   { action: "bottom-half", title: "Bottom Half", icon: "⬓" },
   { action: "top-left", title: "Top Left Quarter", icon: "◰" },
@@ -30,39 +61,88 @@ export const WINDOW_COMMANDS: WindowCommand[] = [
   { action: "center-third", title: "Center Third", icon: "▕" },
   { action: "right-third", title: "Last Third", icon: "▕", keywords: ["right third"] },
   { action: "left-two-thirds", title: "First Two Thirds", icon: "▋", keywords: ["left two thirds"] },
+  { action: "center-two-thirds", title: "Center Two Thirds", icon: "▋" },
   { action: "right-two-thirds", title: "Last Two Thirds", icon: "▋", keywords: ["right two thirds"] },
+  { action: "first-fourth", title: "First Fourth", icon: "▏", keywords: ["left fourth", "quarter width"] },
+  { action: "second-fourth", title: "Second Fourth", icon: "▏" },
+  { action: "third-fourth", title: "Third Fourth", icon: "▏" },
+  { action: "last-fourth", title: "Last Fourth", icon: "▏", keywords: ["right fourth"] },
+  { action: "first-three-fourths", title: "First Three Fourths", icon: "▊", keywords: ["left three fourths"] },
+  { action: "center-three-fourths", title: "Center Three Fourths", icon: "▊" },
+  { action: "last-three-fourths", title: "Last Three Fourths", icon: "▊", keywords: ["right three fourths"] },
+  { action: "top-left-sixth", title: "Top Left Sixth", icon: "◰" },
+  { action: "top-center-sixth", title: "Top Center Sixth", icon: "⬒" },
+  { action: "top-right-sixth", title: "Top Right Sixth", icon: "◳" },
+  { action: "bottom-left-sixth", title: "Bottom Left Sixth", icon: "◱" },
+  { action: "bottom-center-sixth", title: "Bottom Center Sixth", icon: "⬓" },
+  { action: "bottom-right-sixth", title: "Bottom Right Sixth", icon: "◲" },
   { action: "maximize", title: "Maximize", icon: "⬜", keywords: ["full", "fill"] },
   { action: "almost-maximize", title: "Almost Maximize", icon: "▣" },
-  { action: "reasonable-size", title: "Reasonable Size", icon: "▢" },
-  { action: "center", title: "Center", icon: "⊡", keywords: ["middle"] },
   { action: "maximize-height", title: "Maximize Height", icon: "↕" },
   { action: "maximize-width", title: "Maximize Width", icon: "↔" },
+  { action: "reasonable-size", title: "Reasonable Size", icon: "▢" },
+  { action: "make-larger", title: "Make Larger", icon: "⤢", keywords: ["grow", "bigger", ...SIZE_KEYWORDS] },
+  { action: "make-smaller", title: "Make Smaller", icon: "⤡", keywords: ["shrink", ...SIZE_KEYWORDS] },
+  {
+    action: "resize-window",
+    title: "Resize Window",
+    icon: "⤡",
+    keywords: ["width", "height", ...SIZE_KEYWORDS],
+    args: [
+      { name: "width", placeholder: "Width", numeric: true },
+      { name: "height", placeholder: "Height", numeric: true },
+    ],
+    value: pair("width", "height"),
+  },
+  { action: "center", title: "Center", icon: "⊡", keywords: ["middle"] },
+  { action: "move-up", title: "Move Up", icon: "↑", keywords: ["top edge"] },
+  { action: "move-down", title: "Move Down", icon: "↓", keywords: ["bottom edge"] },
+  { action: "move-left", title: "Move Left", icon: "←", keywords: ["left edge"] },
+  { action: "move-right", title: "Move Right", icon: "→", keywords: ["right edge"] },
+  {
+    action: "move-window",
+    title: "Move Window",
+    icon: "✥",
+    keywords: ["position", "x", "y"],
+    args: [
+      { name: "x", placeholder: "X", numeric: true },
+      { name: "y", placeholder: "Y", numeric: true },
+    ],
+    value: pair("x", "y"),
+  },
   { action: "restore", title: "Restore", icon: "↺", keywords: ["undo", "previous size"] },
   { action: "minimize", title: "Minimize", icon: "▁", keywords: ["hide"] },
+  { action: "minimize-display", title: "Minimize on This Display", icon: "▁", keywords: ["minimize all", "hide all", "show desktop"] },
   { action: "toggle-fullscreen", title: "Toggle Fullscreen", icon: "⛶" },
-  { action: "next-desktop", title: "Next Desktop", icon: "⇉", keywords: ["move to next desktop", "workspace", "space"] },
-  { action: "previous-desktop", title: "Previous Desktop", icon: "⇇", keywords: ["move to previous desktop", "workspace", "space"] },
-  { action: "next-display", title: "Next Display", icon: "⇥", keywords: ["monitor", "screen"] },
-  { action: "previous-display", title: "Previous Display", icon: "⇤", keywords: ["monitor", "screen"] },
+  { action: "next-app-window", title: "Focus Next App Window", icon: "⇥", keywords: ["cycle", "switch window"] },
+  { action: "previous-app-window", title: "Focus Previous App Window", icon: "⇤", keywords: ["cycle", "switch window"] },
+  { action: "next-desktop", title: "Next Desktop", icon: "⇉", keywords: ["move to next desktop", "next space", "workspace"] },
+  { action: "previous-desktop", title: "Previous Desktop", icon: "⇇", keywords: ["move to previous desktop", "previous space", "workspace"] },
+  ...desktopCommands(),
+  { action: "next-display", title: "Next Display", icon: "⇥", keywords: ["move to next display", "monitor", "screen"] },
+  { action: "previous-display", title: "Previous Display", icon: "⇤", keywords: ["move to previous display", "monitor", "screen"] },
 ];
+
+/** Calls a method of Beam's GNOME helper extension. */
+function callHelper(method: string, ...args: string[]) {
+  return runCapture(
+    "gdbus",
+    ["call", "--session", "--dest", BUS_NAME, "--object-path", OBJECT_PATH, "--method", `${BUS_NAME}.${method}`, ...args],
+    { timeoutMs: 5000 },
+  );
+}
+
+/** Confetti over the screen, drawn by the GNOME helper. */
+export async function confetti(): Promise<void> {
+  const { code, stderr } = await callHelper("Confetti");
+  if (code !== 0 && /ServiceUnknown|not provided|UnknownMethod|No such method/i.test(stderr)) {
+    notify("Confetti needs one log out", "Beam updated its GNOME helper. Log out and back in once to load it.");
+  }
+}
 
 /** Asks the GNOME extension to move the window that was active before Beam. */
 export async function applyWindowAction(action: string): Promise<void> {
-  const { code, stdout, stderr } = await runCapture(
-    "gdbus",
-    [
-      "call",
-      "--session",
-      "--dest",
-      BUS_NAME,
-      "--object-path",
-      OBJECT_PATH,
-      "--method",
-      `${BUS_NAME}.Apply`,
-      action,
-    ],
-    { timeoutMs: 5000 },
-  );
+  const { code, stdout, stderr } = await callHelper("Apply", action);
   if (code !== 0) {
     if (/ServiceUnknown|not provided|was not provided/i.test(stderr)) {
       notify(
@@ -82,6 +162,7 @@ export async function applyWindowAction(action: string): Promise<void> {
 
 export function windowEntries(hide: () => void): Entry[] {
   return WINDOW_COMMANDS.map((command) => ({
+    // Refs keep the action's own name (e.g. "window:move-to-desktop:3") for hotkeys and aliases.
     id: `window:${command.action}`,
     ref: `window:${command.action}`,
     title: command.title,
@@ -89,15 +170,25 @@ export function windowEntries(hide: () => void): Entry[] {
     icon: command.icon,
     accessory: "Command",
     keywords: ["window", ...(command.keywords ?? [])],
+    args: command.args,
     actions: [
       {
         id: "run",
         title: "Run Command",
         shortcut: "↵",
-        run: () => {
+        run: (args) => {
+          let action = command.action;
+          if (command.value) {
+            const value = command.value(args ?? {});
+            if (value === null) {
+              const names = (command.args ?? []).map((arg) => arg.placeholder).join(" and ");
+              return { type: "error", message: `Type ${names} first (Tab moves between them)` };
+            }
+            action = `${action}:${value}`;
+          }
           hide();
           // Give focus a moment to return to the previous window first.
-          setTimeout(() => void applyWindowAction(command.action), 120);
+          setTimeout(() => void applyWindowAction(action), 120);
           return HIDE;
         },
       },

@@ -5,6 +5,8 @@ import { launchDetached, notify, openPath, runCapture } from "../system";
 import { openCreateQuicklinkForm } from "./quicklinks";
 import { openCreateScriptForm } from "./scripts";
 import { openCreateSnippetForm } from "./snippets";
+import { setLibadwaitaVariant, themeVariant } from "../appearance";
+import { confetti } from "./windows";
 import type { RunResult, View } from "../../shared/types";
 
 interface BuiltinCommand {
@@ -27,18 +29,23 @@ function detached(command: string, ...args: string[]): () => RunResult {
   };
 }
 
+async function setThemeVariant(schema: string, key: string, dark: boolean): Promise<void> {
+  const { code, stdout } = await runCapture("gsettings", ["get", schema, key]);
+  if (code !== 0) return;
+  const current = stdout.trim().replace(/^'|'$/g, "");
+  const next = themeVariant(current, dark);
+  if (next && next !== current) await runCapture("gsettings", ["set", schema, key, next]);
+}
+
 async function toggleDarkMode(): Promise<RunResult> {
   const { stdout } = await runCapture("gsettings", ["get", "org.gnome.desktop.interface", "color-scheme"]);
-  const dark = stdout.includes("prefer-dark");
-  await runCapture("gsettings", [
-    "set",
-    "org.gnome.desktop.interface",
-    "color-scheme",
-    dark ? "default" : "prefer-dark",
-  ]);
-  // Ubuntu's Yaru theme also needs the GTK theme switched for older apps.
-  await runCapture("gsettings", ["set", "org.gnome.desktop.interface", "gtk-theme", dark ? "Yaru" : "Yaru-dark"]);
-  notify(dark ? "Light mode on" : "Dark mode on");
+  const dark = !stdout.includes("prefer-dark");
+  await runCapture("gsettings", ["set", "org.gnome.desktop.interface", "color-scheme", dark ? "prefer-dark" : "default"]);
+  // Older apps (GTK 3) and the shell theme follow their theme's light or dark variant.
+  await setThemeVariant("org.gnome.desktop.interface", "gtk-theme", dark);
+  await setThemeVariant("org.gnome.shell.extensions.user-theme", "name", dark);
+  setLibadwaitaVariant(dark);
+  notify(dark ? "Dark mode on" : "Light mode on");
   return HIDE;
 }
 
@@ -64,6 +71,7 @@ export function builtinCommands(reload: () => void): BuiltinCommand[] {
     { name: "open-config", title: "Open Beam Settings Folder", subtitle: "Beam", icon: "⚙️", keywords: ["preferences", "config"], run: () => { openPath(CONFIG_DIR); return HIDE; } },
     { name: "reload", title: "Reload Beam", subtitle: "Beam", icon: "🔄", keywords: ["refresh", "apps"], run: () => { reload(); return { type: "stay", toast: "Reloaded settings, apps and scripts" }; } },
     { name: "quit", title: "Quit Beam", subtitle: "Beam", icon: "⏻", run: () => { app.quit(); return HIDE; } },
+    { name: "confetti", title: "Confetti", subtitle: "Beam", icon: "🎉", keywords: ["celebrate", "party", "raining confetti"], run: () => { void confetti(); return HIDE; } },
 
     // System
     { name: "lock", title: "Lock Screen", subtitle: "System", icon: "🔒", run: detached("loginctl", "lock-session") },
