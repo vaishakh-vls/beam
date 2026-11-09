@@ -14,6 +14,13 @@
 //     --object-path /org/virallens/BeamWindows \
 //     --method org.virallens.BeamWindows.Confetti
 //
+//   gdbus call --session --dest org.virallens.BeamWindows \
+//     --object-path /org/virallens/BeamWindows \
+//     --method org.virallens.BeamWindows.Pointer
+//
+// Pointer returns where the mouse pointer is, so Beam opens on that display:
+// Beam runs through XWayland, which only sees the pointer over Beam itself.
+//
 // Apply takes an action, with its value after a colon where it needs one:
 // "move-window:100,80", "resize-window:1200,800", "move-to-desktop:3".
 
@@ -39,6 +46,10 @@ const INTERFACE_XML = `
     <method name="Confetti">
       <arg type="b" direction="out" name="ok"/>
       <arg type="s" direction="out" name="message"/>
+    </method>
+    <method name="Pointer">
+      <arg type="i" direction="out" name="x"/>
+      <arg type="i" direction="out" name="y"/>
     </method>
     <method name="LockKeyboard">
       <arg type="u" direction="in" name="seconds"/>
@@ -164,6 +175,12 @@ export default class BeamWindowsExtension extends Extension {
     } catch (error) {
       return [false, String(error)];
     }
+  }
+
+  /** D-Bus method: the pointer's position, in the same layout coordinates as the displays. */
+  Pointer() {
+    const [x, y] = global.get_pointer();
+    return [x, y];
   }
 
   /**
@@ -319,6 +336,9 @@ export default class BeamWindowsExtension extends Extension {
         return this._closeDesktop(value ? Number(value) : null);
       case "minimize-display":
         return this._minimizeDisplay();
+      case "focus-next-display":
+      case "focus-previous-display":
+        return this._focusDisplay(action === "focus-next-display" ? 1 : -1);
     }
 
     const win = this._target();
@@ -456,6 +476,31 @@ export default class BeamWindowsExtension extends Extension {
     }
     win.activate(global.get_current_time());
     return [true, action];
+  }
+
+  /**
+   * Focuses the top window on the next (or previous) display and puts the
+   * pointer on it, so typing, scrolling and Beam all go there. On a display
+   * with no windows the pointer moves to its centre.
+   */
+  _focusDisplay(step) {
+    const count = global.display.get_n_monitors();
+    if (count < 2) return [false, "Only one display connected"];
+    const from = this._target()?.get_monitor() ?? global.display.get_current_monitor();
+    const monitor = (from + step + count) % count;
+    // Includes windows on every desktop, such as those on a secondary display.
+    const candidates = global.workspace_manager.get_active_workspace().list_windows().filter((w) =>
+      w.get_monitor() === monitor &&
+      !w.minimized &&
+      !w.skip_taskbar &&
+      !isBeam(w) &&
+      w.get_window_type() === Meta.WindowType.NORMAL);
+    const win = global.display.sort_windows_by_stacking(candidates).at(-1);
+    const rect = win ? win.get_frame_rect() : global.display.get_monitor_geometry(monitor);
+    if (win) win.activate(global.get_current_time());
+    Clutter.get_default_backend().get_default_seat()
+      .warp_pointer(Math.round(rect.x + rect.width / 2), Math.round(rect.y + rect.height / 2));
+    return [true, win ? win.get_title() ?? "" : "No windows on that display"];
   }
 
   /** Moves the window to the desktop at `index` and switches there with it focused. */

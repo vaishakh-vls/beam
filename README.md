@@ -71,8 +71,9 @@ Any command can get its own hotkey or alias from its action panel (`Ctrl+K`). Sh
   - Halves, Center Half, quarters, thirds, Center Two Thirds, fourths, three fourths and sixths
   - Maximize, Almost Maximize, Maximize Height/Width, Reasonable Size, Make Larger/Smaller (10% of the screen a step), Center, Restore, Minimize, Toggle Fullscreen
   - Move Up/Down/Left/Right to a screen edge; **Move Window** and **Resize Window** take the values in fields beside the search box (`Tab` between X and Y, or width and height)
-  - Minimize on This Display; Focus Next/Previous App Window
+  - Minimize on This Display; Focus Next/Previous App Window; **Focus Next/Previous Display** focuses the top window on the other display and moves the pointer onto it (a display with no windows gets just the pointer)
   - Next/Previous Display; **Next Desktop** / **Previous Desktop** move the window you were using to the next or previous desktop and take you with it (from the last one, it gets a new desktop of its own); Open Desktop 1–9, Move to Desktop 1–9, Close Desktop (the current one, or 1–9; its windows move to the desktop beside it)
+- **Opens where you are**: with more than one display, Beam opens on the one under the mouse pointer. Beam runs through XWayland, which only sees the pointer while it's over Beam, so it asks the GNOME extension where the pointer is (a few milliseconds)
 - **Confetti** (`Super+Shift+C`): confetti bursts from the bottom corners of the screen, drawn by the GNOME extension above every window; it takes no clicks or focus and is gone after 4.5 seconds. Each press adds another burst on top of the ones still falling (up to 8 at once)
 - **Processes**: list running processes by CPU or memory, and quit or force-kill them
 - **Fan Control** (ThinkPad): fan speed and temperatures, and fan levels from Auto to Full Speed
@@ -267,7 +268,7 @@ On Wayland, apps can't type into other windows, so pasting from Beam copies to t
 | `src/main/providers/` | Apps, Settings pages, files, clipboard, snippets, quicklinks, emoji, calculator, currency, scripts, windows, processes, fans, Spotify, Chrome, GIFs, Wi-Fi, Bluetooth, audio, color, caffeinate, speed test, keyboard, Browser Tabs, developer tools, file conversion, Open With and Quick Look, power, fonts, themes, welcome tour |
 | `src/renderer/` | React UI |
 | `src/shared/` | Types shared by both |
-| `gnome-extension/` | GNOME Shell helper for window management and Clean Keyboard (D-Bus) |
+| `gnome-extension/` | GNOME Shell helper for window management, Clean Keyboard, Confetti and the pointer position (D-Bus) |
 | `chrome-extension/` | Chrome extension behind Browser Tabs |
 | `scripts/` | Build helpers: bundling, icons, and packing the signed Chrome extension |
 | `install.sh` | The one-step installer |

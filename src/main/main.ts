@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, ipcMain, Menu, net, protocol, screen, Tray } from "electron";
 import { parseRunArg } from "./cli";
 import { config, loadConfig } from "./config";
+import { launcherBounds } from "./displays";
 import { submitForm } from "./forms";
 import { ICON_SCHEME, iconFileFromUrl } from "./icons";
 import { syncKeybinds } from "./keybinds";
@@ -22,7 +23,7 @@ import { runSnippet } from "./providers/snippets";
 import { startBrowserBridge, stopBrowserBridge } from "./providers/tabs";
 import { refreshTheme, startThemes } from "./providers/themes";
 import { announceFirstRun, firstRunView } from "./providers/welcome";
-import { applyWindowAction, ensureWindowExtension } from "./providers/windows";
+import { applyWindowAction, ensureWindowExtension, pointerPosition } from "./providers/windows";
 import { launchableEntries, runAction, search, type SearchContext } from "./search";
 import { closeSocket, listenForRefs, socketPath } from "./socket";
 import { notify } from "./system";
@@ -77,18 +78,15 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
-function showWindow(payload: ShowPayload): void {
+async function showWindow(payload: ShowPayload): Promise<void> {
   if (!win) return;
   // The first time the window opens, the tour stands in for the empty search.
   if (payload.view === "root" && !payload.result) payload = { view: firstRunView() ?? "root" };
-  const cursor = screen.getCursorScreenPoint();
-  const { workArea } = screen.getDisplayNearestPoint(cursor);
-  win.setBounds({
-    x: Math.round(workArea.x + (workArea.width - WIDTH) / 2),
-    y: Math.round(workArea.y + workArea.height * 0.2),
-    width: WIDTH,
-    height: HEIGHT,
-  });
+  // Open on the display under the pointer; GNOME Shell knows where it is.
+  const pointer = screen.getAllDisplays().length > 1 ? await pointerPosition() : null;
+  if (!win) return;
+  const { workArea } = screen.getDisplayNearestPoint(pointer ?? screen.getCursorScreenPoint());
+  win.setBounds(launcherBounds(workArea, WIDTH, HEIGHT));
   refreshTheme();
   win.webContents.send("beam:show", payload);
   win.show();

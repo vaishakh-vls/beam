@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { app } from "electron";
+import { parsePointerReply, type Point } from "../displays";
 import { HIDE, type Entry } from "../entry";
 import { isGnome, notify, runCapture } from "../system";
 import type { ArgDef } from "../../shared/types";
@@ -121,6 +122,8 @@ export const WINDOW_COMMANDS: WindowCommand[] = [
   ...desktopCommands(),
   { action: "next-display", title: "Next Display", icon: "⇥", keywords: ["move to next display", "monitor", "screen"] },
   { action: "previous-display", title: "Previous Display", icon: "⇤", keywords: ["move to previous display", "monitor", "screen"] },
+  { action: "focus-next-display", title: "Focus Next Display", icon: "⇥", keywords: ["switch display", "other display", "monitor", "screen", "focus"] },
+  { action: "focus-previous-display", title: "Focus Previous Display", icon: "⇤", keywords: ["switch display", "other display", "monitor", "screen", "focus"] },
 ];
 
 /** Calls a method of Beam's GNOME helper extension. */
@@ -130,6 +133,22 @@ function callHelper(method: string, ...args: string[]) {
     ["call", "--session", "--dest", BUS_NAME, "--object-path", OBJECT_PATH, "--method", `${BUS_NAME}.${method}`, ...args],
     { timeoutMs: 5000 },
   );
+}
+
+/**
+ * Where the pointer is, asked of GNOME Shell. Beam runs through XWayland,
+ * which only learns the pointer's position while it is over one of Beam's
+ * own windows, so Electron's own answer is often stale. Null until the
+ * helper has this method (one log out after an update).
+ */
+export async function pointerPosition(): Promise<Point | null> {
+  if (!isGnome()) return null;
+  const { code, stdout } = await runCapture(
+    "gdbus",
+    ["call", "--session", "--dest", BUS_NAME, "--object-path", OBJECT_PATH, "--method", `${BUS_NAME}.Pointer`],
+    { timeoutMs: 300 },
+  );
+  return code === 0 ? parsePointerReply(stdout) : null;
 }
 
 /** Confetti over the screen, drawn by the GNOME helper. */
