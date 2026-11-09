@@ -39,6 +39,13 @@ export function loadApps(force = false): DesktopApp[] {
   return apps;
 }
 
+/** The icon of the installed app with this name ("Spotify"), as a beam-icon:// URL. */
+export function appIconUrl(name: string): string | null {
+  const app = loadApps().find((a) => a.icon && a.name === name);
+  const file = app?.icon ? resolveIcon(app.icon) : null;
+  return file ? iconUrl(file) : null;
+}
+
 export function launchApp(desktopId: string): boolean {
   const app = loadApps().find((a) => a.id === desktopId);
   if (!app) return false;

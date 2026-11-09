@@ -7,6 +7,7 @@ import { app } from "electron";
 import { markdownLink } from "../chrome";
 import { HIDE, type Entry, type EntryAction, type Section, type ViewProvider } from "../entry";
 import { bestScore } from "../fuzzy";
+import { appIconUrl } from "./apps";
 import { copyText, launchDetached, notify, truncate } from "../system";
 import {
   EXTENSION_ID,
@@ -367,7 +368,8 @@ export function tabsCommands(_hide: () => void): Entry[] {
       ref: "cmd:tabs",
       title: "Search Browser Tabs",
       subtitle: "Google Chrome",
-      icon: "📑",
+      app: "Google Chrome",
+      icon: appIconUrl("Google Chrome") ?? "📑",
       accessory: "Command",
       keywords: ["chrome", "tab", "tabs", "browser", "switch", "open tabs"],
       actions: [{ id: "run", title: "Search Browser Tabs", shortcut: "↵", run: () => ({ type: "view", view: "tabs" }) }],

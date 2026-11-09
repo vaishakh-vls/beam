@@ -16,6 +16,7 @@ import {
   type HistoryItem,
 } from "../chrome";
 import { HIDE, type Entry, type ViewProvider } from "../entry";
+import { appIconUrl } from "./apps";
 import { copyText, launchDetached, runCapture, truncate } from "../system";
 import type { RunResult } from "../../shared/types";
 
@@ -191,7 +192,7 @@ function notice(id: string, title: string, subtitle: string): Entry {
   return { id: `chrome:${id}`, title, subtitle, icon: "⚠️", actions: [] };
 }
 
-function windowCommand(args: string[]): () => RunResult {
+function chromeAction(args: string[]): () => RunResult {
   return () => {
     chrome(...args);
     return HIDE;
@@ -199,12 +200,14 @@ function windowCommand(args: string[]): () => RunResult {
 }
 
 export function chromeCommands(_hide: () => void): Entry[] {
+  const logo = appIconUrl("Google Chrome");
   const command = (name: string, title: string, icon: string, keywords: string[], run: () => RunResult): Entry => ({
     id: `cmd:${name}`,
     ref: `cmd:${name}`,
     title,
     subtitle: "Google Chrome",
-    icon,
+    app: "Google Chrome",
+    icon: logo ?? icon,
     accessory: "Command",
     keywords,
     actions: [{ id: "run", title: "Run Command", shortcut: "↵", run }],
@@ -214,8 +217,9 @@ export function chromeCommands(_hide: () => void): Entry[] {
       type: "view",
       view: "chrome",
     })),
-    command("chrome-new-window", "New Chrome Window", "🌐", ["browser", "google chrome", "open"], windowCommand(["--new-window"])),
-    command("chrome-new-incognito", "New Incognito Window", "🕶️", ["browser", "google chrome", "private"], windowCommand(["--incognito"])),
+    command("chrome-new-tab", "New Chrome Tab", "🌐", ["browser", "google chrome", "open", "tab"], chromeAction(["chrome://newtab"])),
+    command("chrome-new-window", "New Chrome Window", "🌐", ["browser", "google chrome", "open"], chromeAction(["--new-window"])),
+    command("chrome-new-incognito", "New Incognito Window", "🕶️", ["browser", "google chrome", "private"], chromeAction(["--incognito"])),
   ];
 }
 

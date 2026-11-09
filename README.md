@@ -77,7 +77,7 @@ Any command can get its own hotkey or alias from its action panel (`Ctrl+K`). Sh
 - **Processes**: list running processes by CPU or memory, and quit or force-kill them
 - **Fan Control** (ThinkPad): fan speed and temperatures, and fan levels from Auto to Full Speed
 - **Spotify**: now playing, playback controls and search, via playerctl
-- **Google Chrome**: search bookmarks and history, and open new or incognito windows
+- **Google Chrome**: search bookmarks and history, and open a new tab, window or incognito window
 - **GIF search**: search GIPHY and copy a GIF's URL or Markdown
 - **Wi-Fi**: connect to, disconnect from and forget networks, turn Wi-Fi on or off, and copy or show saved passwords with a QR code for phones
 - **Bluetooth**: connect, pair and remove devices, and turn Bluetooth on or off
@@ -128,7 +128,7 @@ ThinkPads only: it works through the `thinkpad_acpi` driver. **Fan Control** sho
 
 ### Spotify
 
-Commands: **Spotify Now Playing**, **Spotify Play/Pause**, **Spotify Next Track**, **Spotify Previous Track**, **Search Spotify**. Play/Pause, Next and Previous act without opening a view and start Spotify if it's closed; Next and Previous show the new track in a notification.
+Commands: **Spotify Now Playing**, **Spotify Play/Pause**, **Spotify Next Track**, **Spotify Previous Track**, **Search Spotify**. Play/Pause, Next and Previous act without opening a view and start Spotify if it's closed; Next and Previous show the new track in a notification. They carry Spotify's own icon, and typing `spo` lists the Spotify app first with these commands under it.
 
 Now Playing and Search Spotify open the Spotify view: the current track with cover art and progress, then Play/Pause, Next, Previous, Shuffle, Repeat, Volume Up and Volume Down. Typing filters the controls (`skip`, `vol`) and adds a search item.
 
@@ -138,7 +138,7 @@ Now Playing and Search Spotify open the Spotify view: the current track with cov
 
 ### Google Chrome
 
-Commands: **Search Chrome**, **New Chrome Window**, **New Incognito Window**. Search Chrome shows recent history and bookmarks from the profile Chrome used last; type to search both.
+Commands: **Search Chrome**, **New Chrome Tab**, **New Chrome Window**, **New Incognito Window**. Typing `chrome` lists the Google Chrome app first and these commands under it. Search Chrome shows recent history and bookmarks from the profile Chrome used last; type to search both.
 
 - Keys: `Enter` open in Chrome, `Ctrl+Enter` open in an incognito window, `Ctrl+Shift+C` copy URL, `Ctrl+Shift+M` copy as Markdown link.
 - History and bookmarks are read locally only, from `~/.config/google-chrome`. Chrome locks its history file, so Beam queries a private copy in `$XDG_RUNTIME_DIR/beam` and deletes it when Beam quits.

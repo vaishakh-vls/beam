@@ -1,7 +1,7 @@
 import { config, saveConfig } from "./config";
 import { toResultItem, type Entry, type EntryAction, type Section, type ViewProvider } from "./entry";
 import { showForm } from "./forms";
-import { bestScore } from "./fuzzy";
+import { STRONG_MATCH, bestScore, rankResults } from "./fuzzy";
 import { hotkeyFor, setHotkey } from "./keybinds";
 import { appEntries } from "./providers/apps";
 import { audioCommands, audioView, volumeEntry } from "./providers/audio";
@@ -208,10 +208,10 @@ function rootSearch(query: string, ctx: SearchContext): Section[] {
     scored.push({ entry, score: score + usageBoost(entry.ref) });
   }
   for (const entry of snippetKeywordMatches(q, ctx.hide)) scored.push({ entry, score: 3000 });
-  scored.sort((a, b) => b.score - a.score);
+  const sorted = rankResults(scored);
   // Loose subsequence matches are only worth showing when nothing better exists.
-  const strong = scored.filter(({ score }) => score >= 300);
-  const ranked = strong.length >= 3 ? strong : scored;
+  const strong = sorted.filter(({ score }) => score >= STRONG_MATCH);
+  const ranked = strong.length >= 3 ? strong : sorted;
 
   const sections: Section[] = [];
   const calc = calculatorEntry(q, ctx.hide);

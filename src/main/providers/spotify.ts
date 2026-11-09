@@ -20,6 +20,7 @@ import {
   type Track,
 } from "../spotify";
 import { copyText, launchDetached, notify, openUrl, runCapture } from "../system";
+import { appIconUrl } from "./apps";
 import type { RunResult } from "../../shared/types";
 
 const INSTALL_HINT = "Spotify controls need playerctl. Install it with: sudo apt install playerctl";
@@ -168,12 +169,15 @@ async function announceTrack(previous: string): Promise<void> {
 }
 
 export function spotifyCommands(hide: () => void): Entry[] {
+  // Spotify's own logo, from its desktop file (snap, flatpak or .deb); each command's emoji if it isn't installed.
+  const logo = appIconUrl("Spotify");
   const command = (name: string, title: string, icon: string, keywords: string[], run: EntryAction["run"]): Entry => ({
     id: `cmd:${name}`,
     ref: `cmd:${name}`,
     title,
     subtitle: "Spotify",
-    icon,
+    app: "Spotify",
+    icon: logo ?? icon,
     accessory: "Command",
     keywords,
     actions: [{ id: "run", title: "Run Command", shortcut: "↵", run }],

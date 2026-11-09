@@ -55,3 +55,31 @@ export function bestScore(query: string, fields: Array<string | undefined>): num
   }
   return best;
 }
+
+/** Scores at or above this are real matches; below it, loose subsequence matches. */
+export const STRONG_MATCH = 300;
+
+export interface Scored<E> {
+  entry: E;
+  score: number;
+}
+
+/**
+ * Sorts best first, keeping each app above its own commands: "spo" lists
+ * Spotify before "Spotify Play/Pause", and "chrome" lists Google Chrome before
+ * "New Incognito Window". A command names its app in `app`; when that app
+ * matches well too, the command ranks just under it, still in its own order.
+ */
+export function rankResults<E extends { ref?: string; title: string; app?: string }>(scored: Array<Scored<E>>): Array<Scored<E>> {
+  const apps = new Map<string, number>();
+  for (const { entry, score } of scored) {
+    if (entry.ref?.startsWith("app:") && score >= STRONG_MATCH) apps.set(entry.title, Math.max(score, apps.get(entry.title) ?? 0));
+  }
+  return scored
+    .map((item) => {
+      const app = item.entry.app === undefined ? undefined : apps.get(item.entry.app);
+      return { item, rank: app === undefined ? item.score : Math.min(item.score, app - 1) };
+    })
+    .sort((a, b) => b.rank - a.rank || b.item.score - a.item.score)
+    .map(({ item }) => item);
+}

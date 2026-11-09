@@ -19,6 +19,8 @@ export interface Entry {
   keywords?: string[];
   /** Set for launchable commands, enabling aliases, hotkeys and ranking. */
   ref?: string;
+  /** The app a command works on, by its name ("Spotify"): the app ranks first when both match. */
+  app?: string;
   actions: EntryAction[];
 }
 
