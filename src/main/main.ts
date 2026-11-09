@@ -9,6 +9,7 @@ import { submitForm } from "./forms";
 import { ICON_SCHEME, iconFileFromUrl } from "./icons";
 import { syncKeybinds } from "./keybinds";
 import { launchApp, loadApps } from "./providers/apps";
+import { loadPanels } from "./providers/settings";
 import { stopCaffeinate } from "./providers/caffeinate";
 import { stopConversions } from "./providers/convert";
 import { startClipboardWatcher } from "./providers/clipboard";
@@ -155,6 +156,7 @@ const context: SearchContext = {
   reload: () => {
     loadConfig();
     loadApps(true);
+    loadPanels(true);
     void rebuildFileIndex();
     void registerHotkeys();
   },

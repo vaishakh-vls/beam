@@ -49,6 +49,26 @@ async function toggleDarkMode(): Promise<RunResult> {
   return HIDE;
 }
 
+/** Night Light on or off, as GNOME's own Night Light toggle does it. */
+async function toggleNightLight(): Promise<RunResult> {
+  const schema = "org.gnome.settings-daemon.plugins.color";
+  const read = async (key: string) => (await runCapture("gsettings", ["get", schema, key])).stdout.trim();
+  const on = (await read("night-light-enabled")) !== "true";
+  await runCapture("gsettings", ["set", schema, "night-light-enabled", String(on)]);
+  if (!on) {
+    notify("Night Light off");
+  } else if ((await read("night-light-schedule-automatic")) === "true") {
+    notify("Night Light on", "From sunset to sunrise (Displays in Settings changes the schedule)");
+  } else {
+    const time = (hours: string) => {
+      const h = Number(hours);
+      return `${String(Math.floor(h)).padStart(2, "0")}:${String(Math.round((h % 1) * 60)).padStart(2, "0")}`;
+    };
+    notify("Night Light on", `From ${time(await read("night-light-schedule-from"))} to ${time(await read("night-light-schedule-to"))}`);
+  }
+  return HIDE;
+}
+
 function volume(change: string): () => Promise<RunResult> {
   return async () => {
     await runCapture("wpctl", ["set-volume", "-l", "1.0", "@DEFAULT_AUDIO_SINK@", change]);
@@ -80,6 +100,7 @@ export function builtinCommands(reload: () => void): BuiltinCommand[] {
     { name: "restart", title: "Restart", subtitle: "System", icon: "🔁", keywords: ["reboot"], run: detached("gnome-session-quit", "--reboot") },
     { name: "shutdown", title: "Shut Down", subtitle: "System", icon: "⏼", keywords: ["power off"], run: detached("gnome-session-quit", "--power-off") },
     { name: "dark-mode", title: "Toggle System Appearance", subtitle: "System", icon: "🌓", keywords: ["dark mode", "light mode", "theme"], run: toggleDarkMode },
+    { name: "night-light", title: "Toggle Night Light", subtitle: "System", icon: "🌇", keywords: ["blue light", "warm", "redshift", "night shift"], run: toggleNightLight },
     { name: "empty-trash", title: "Empty Trash", subtitle: "System", icon: "🗑️", run: async () => { await runCapture("gio", ["trash", "--empty"]); notify("Trash emptied"); return HIDE; } },
     { name: "volume-up", title: "Volume Up", subtitle: "System", icon: "🔊", keywords: ["sound", "louder"], run: volume("10%+") },
     { name: "volume-down", title: "Volume Down", subtitle: "System", icon: "🔉", keywords: ["sound", "quieter"], run: volume("10%-") },

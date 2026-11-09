@@ -45,6 +45,15 @@ const SEARCH: Feature[] = [
     tryQuery: "terminal",
   },
   {
+    id: "settings",
+    title: "Settings Pages",
+    subtitle: "Displays, Night Light, Power, Sound and every other page",
+    icon: "⚙️",
+    about: "Every page of GNOME Settings is in the search, found by its name or by what's on it: \"night light\", \"resolution\" or \"monitor\" open Displays, \"battery\" opens Power, \"trackpad\" opens Mouse & Touchpad.\n\nToggle Night Light turns Night Light on or off without opening Settings.",
+    tryQuery: "night light",
+    keywords: ["display", "resolution", "preferences", "system settings"],
+  },
+  {
     id: "calculator",
     title: "Calculator and Conversions",
     subtitle: "Math, units and currencies right in the search",

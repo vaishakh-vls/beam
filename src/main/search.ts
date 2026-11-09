@@ -26,6 +26,7 @@ import { powerCommands, powerView } from "./providers/power";
 import { processCommands, processView } from "./providers/processes";
 import { quicklinkEntries, rootQuicklinkEntries } from "./providers/quicklinks";
 import { scriptEntries } from "./providers/scripts";
+import { settingsEntries } from "./providers/settings";
 import { speedtestCommands, speedtestView } from "./providers/speedtest";
 import { spotifyCommands, spotifyView } from "./providers/spotify";
 import { tabsCommands, tabsView } from "./providers/tabs";
@@ -116,6 +117,7 @@ export function launchableEntries(ctx: SearchContext): Entry[] {
     ...tabsCommands(ctx.hide),
     ...windowEntries(ctx.hide),
     ...appEntries(),
+    ...settingsEntries(),
     ...scriptEntries(),
     ...quicklinkEntries(""),
   ];

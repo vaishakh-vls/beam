@@ -57,6 +57,7 @@ Any command can get its own hotkey or alias from its action panel (`Ctrl+K`). Sh
 ## Features
 
 - **Apps** from `.desktop` files, with system icons
+- **Settings pages**: every page of GNOME Settings (Displays, Power, Sound, Mouse & Touchpad...), found by its name or by what's on it, as GNOME's own search does: `night light`, `resolution` and `monitor` find Displays, `battery` finds Power, `trackpad` finds Mouse & Touchpad. **Toggle Night Light** turns Night Light on or off and says when it runs
 - **Files**: indexed search of the folders in `fileSearchRoots`, with **Quick Look** (`Ctrl+Y`: text, formatted JSON, images, a PDF's first page, folder contents) and **Open With…** (`Ctrl+O`: the apps for that file type, every other app, and "Always Open … with" to change the default)
 - **Welcome tour** on first launch: every feature with a "Try It"; reopen it any time with **Welcome to Beam**
 - **Clipboard history**: text and images, with password and token filtering
@@ -263,7 +264,7 @@ On Wayland, apps can't type into other windows, so pasting from Beam copies to t
 | Path | Contents |
 |---|---|
 | `src/main/` | Electron main process: search, hotkeys, IPC, and the pure helpers behind the providers |
-| `src/main/providers/` | Apps, files, clipboard, snippets, quicklinks, emoji, calculator, currency, scripts, windows, processes, fans, Spotify, Chrome, GIFs, Wi-Fi, Bluetooth, audio, color, caffeinate, speed test, keyboard, Browser Tabs, developer tools, file conversion, Open With and Quick Look, power, fonts, themes, welcome tour |
+| `src/main/providers/` | Apps, Settings pages, files, clipboard, snippets, quicklinks, emoji, calculator, currency, scripts, windows, processes, fans, Spotify, Chrome, GIFs, Wi-Fi, Bluetooth, audio, color, caffeinate, speed test, keyboard, Browser Tabs, developer tools, file conversion, Open With and Quick Look, power, fonts, themes, welcome tour |
 | `src/renderer/` | React UI |
 | `src/shared/` | Types shared by both |
 | `gnome-extension/` | GNOME Shell helper for window management and Clean Keyboard (D-Bus) |

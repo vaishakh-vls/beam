@@ -1,7 +1,7 @@
 {
   "name": "beam",
   "productName": "Beam",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "A Raycast-style launcher for Ubuntu: apps, files, clipboard history, snippets, window management, browser tabs, developer tools, file conversion and system controls.",
   "homepage": "https://beam.local",
   "main": "dist/main/main.js",
