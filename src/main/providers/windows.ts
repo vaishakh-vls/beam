@@ -151,6 +151,13 @@ export async function pointerPosition(): Promise<Point | null> {
   return code === 0 ? parsePointerReply(stdout) : null;
 }
 
+/** Whether the running GNOME helper tells Beam about copies (version 7 on). */
+export async function helperSendsClipboardEvents(): Promise<boolean> {
+  if (!isGnome()) return false;
+  const { code, stdout } = await callHelper("ClipboardEvents");
+  return code === 0 && stdout.includes("true");
+}
+
 /** Confetti over the screen, drawn by the GNOME helper. */
 export async function confetti(): Promise<void> {
   const { code, stderr } = await callHelper("Confetti");

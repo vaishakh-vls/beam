@@ -97,6 +97,18 @@ Any command can get its own hotkey or alias from its action panel (`Ctrl+K`). Sh
 
 Config lives in `~/.config/beam/config.json`. Set `"trayIcon": false` there to hide Beam's top-bar icon (its menu's commands are all in Beam itself; restart Beam after changing it).
 
+## Performance
+
+Beam sits in the background all day, so it is built to stay small and quiet:
+
+- **About 250 MB in all** across its processes, measured on Beam 0.2.9 (0.2.8 took 355 MB). Most of it is Electron itself.
+- **Beam Memory Usage** shows how much each of Beam's processes is using right now, with shared memory split between them so nothing is counted twice.
+- **No polling for the clipboard**: Beam's GNOME helper tells Beam each time something is copied, so an idle Beam uses no CPU and wakes about once a second. Without the helper (another desktop, or before the first log out after installing), Beam checks the clipboard every 0.6 s instead.
+- **Low-memory mode** (`"lowMemory"` in the config): Beam closes its window after it has been hidden for a minute and only creates it again when called (at login too), which saves about 40 MB; the next open takes a few hundred milliseconds instead of being instant. `"auto"` (the default) turns it on for computers with 4 GB of RAM or less, `"on"` always, `"off"` never.
+- **Loaded when first used**: the calculator (mathjs), the emoji list and the Wi-Fi QR code library load the first time you need them.
+- **Compact file index**: about 80,000 file names take about 10 MB.
+- **Long lists drawn in pages**: the emoji grid and clipboard history draw 200 items at first and more as you scroll.
+
 ## Commands
 
 Type a command's name, or a keyword such as `kill` or `bt`. Keys below act on the selected item; `Ctrl+K` lists all of its actions.
@@ -268,7 +280,8 @@ On Wayland, apps can't type into other windows, so pasting from Beam copies to t
 | `src/main/providers/` | Apps, Settings pages, files, clipboard, snippets, quicklinks, emoji, calculator, currency, scripts, windows, processes, fans, Spotify, Chrome, GIFs, Wi-Fi, Bluetooth, audio, color, caffeinate, speed test, keyboard, Browser Tabs, developer tools, file conversion, Open With and Quick Look, power, fonts, themes, welcome tour |
 | `src/renderer/` | React UI |
 | `src/shared/` | Types shared by both |
-| `gnome-extension/` | GNOME Shell helper for window management, Clean Keyboard, Confetti and the pointer position (D-Bus) |
+| `src/main/lazy/` | Bundles loaded the first time they are needed: mathjs, the emoji list, QR codes |
+| `gnome-extension/` | GNOME Shell helper for window management, Clean Keyboard, Confetti and the pointer position (D-Bus); it also tells Beam when something is copied |
 | `chrome-extension/` | Chrome extension behind Browser Tabs |
 | `scripts/` | Build helpers: bundling, icons, and packing the signed Chrome extension |
 | `install.sh` | The one-step installer |

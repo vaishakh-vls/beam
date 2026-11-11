@@ -293,6 +293,7 @@ export function App() {
               sections={response.sections}
               selectedIndex={selectedIndex}
               grid={response.info.grid}
+              resetKey={`${view}\n${query}`}
               onSelect={(index) => {
                 // A nudged mouse mustn't move the selection away from fields being filled in.
                 if (!document.activeElement?.classList.contains("arg-input")) setSelectedIndex(index);

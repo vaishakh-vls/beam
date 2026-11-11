@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { config } from "../config";
 import { HIDE, type Entry } from "../entry";
+import { FileIndex, FileIndexBuilder, type FileHit } from "../fileindex";
 import { fuzzyScore } from "../fuzzy";
 import { copyText, openPath, revealInFolder } from "../system";
 import { convertFileAction } from "./convert";
@@ -21,33 +22,25 @@ const SKIP_DIRS = new Set([
 const MAX_ENTRIES = 80_000;
 const REFRESH_MS = 10 * 60 * 1000;
 
-interface FileRecord {
-  name: string;
-  /** Lowercased once at index time; matching runs on every keystroke. */
-  lower: string;
-  path: string;
-  isDir: boolean;
-}
-
-let index: FileRecord[] = [];
+let index = FileIndex.empty();
 let indexing = false;
 
-async function walk(dir: string, depth: number, out: FileRecord[]): Promise<void> {
-  if (out.length >= MAX_ENTRIES) return;
+async function walk(dir: string, depth: number, out: FileIndexBuilder): Promise<void> {
+  if (out.size >= MAX_ENTRIES) return;
   let entries: import("node:fs").Dirent[];
   try {
     entries = await fs.readdir(dir, { withFileTypes: true });
   } catch {
     return;
   }
+  const folder = out.addFolder(dir);
   const subdirs: string[] = [];
   for (const entry of entries) {
     if (entry.name.startsWith(".")) continue;
-    const full = path.join(dir, entry.name);
     const isDir = entry.isDirectory();
-    out.push({ name: entry.name, lower: entry.name.toLowerCase(), path: full, isDir });
-    if (isDir && depth > 0 && !SKIP_DIRS.has(entry.name)) subdirs.push(full);
-    if (out.length >= MAX_ENTRIES) return;
+    out.add(folder, entry.name, isDir);
+    if (isDir && depth > 0 && !SKIP_DIRS.has(entry.name)) subdirs.push(path.join(dir, entry.name));
+    if (out.size >= MAX_ENTRIES) break;
   }
   for (const sub of subdirs) await walk(sub, depth - 1, out);
 }
@@ -57,11 +50,11 @@ export async function rebuildFileIndex(): Promise<void> {
   indexing = true;
   try {
     const home = os.homedir();
-    const next: FileRecord[] = [];
+    const next = new FileIndexBuilder();
     for (const root of config().fileSearchRoots) {
       await walk(path.resolve(home, root), config().fileSearchMaxDepth, next);
     }
-    index = next;
+    index = next.build();
   } finally {
     indexing = false;
   }
@@ -81,20 +74,18 @@ function displayPath(full: string): string {
 export function searchFiles(query: string, limit: number): Entry[] {
   const q = query.trim();
   if (q.length < 2) return [];
-  const lower = q.toLowerCase();
-  const scored: Array<{ record: FileRecord; score: number }> = [];
-  for (const record of index) {
-    // Loose subsequence matches on file names are mostly noise, so only
-    // names containing the query are scored.
-    if (!record.lower.includes(lower)) continue;
-    const score = fuzzyScore(q, record.name);
-    if (score >= 300) scored.push({ record, score });
+  const scored: Array<{ record: FileHit; score: number }> = [];
+  // Loose subsequence matches on file names are mostly noise, so only
+  // names containing the query are scored.
+  for (const id of index.containing(q.toLowerCase())) {
+    const score = fuzzyScore(q, index.name(id));
+    if (score >= 300) scored.push({ record: index.hit(id), score });
   }
   scored.sort((a, b) => b.score - a.score || a.record.path.length - b.record.path.length);
   return scored.slice(0, limit).map(({ record }) => fileEntry(record));
 }
 
-function fileEntry(record: FileRecord): Entry {
+function fileEntry(record: FileHit): Entry {
   return {
     id: `file:${record.path}`,
     title: record.name,

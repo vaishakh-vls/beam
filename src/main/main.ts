@@ -1,3 +1,4 @@
+import "./flags";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -6,6 +7,7 @@ import { app, BrowserWindow, ipcMain, Menu, net, protocol, screen, Tray } from "
 import { parseRunArg } from "./cli";
 import { config, loadConfig } from "./config";
 import { launcherBounds } from "./displays";
+import { CLOSE_HIDDEN_AFTER_MS, lowMemoryMode } from "./footprint";
 import { submitForm } from "./forms";
 import { ICON_SCHEME, iconFileFromUrl } from "./icons";
 import { syncKeybinds } from "./keybinds";
@@ -13,7 +15,7 @@ import { launchApp, loadApps } from "./providers/apps";
 import { loadPanels } from "./providers/settings";
 import { stopCaffeinate } from "./providers/caffeinate";
 import { stopConversions } from "./providers/convert";
-import { startClipboardWatcher } from "./providers/clipboard";
+import { clipboardEvent, startClipboardWatcher } from "./providers/clipboard";
 import { startFanGuard } from "./providers/fans";
 import { refreshRates } from "./providers/currency";
 import { rebuildFileIndex, startFileIndexer } from "./providers/files";
@@ -23,7 +25,7 @@ import { runSnippet } from "./providers/snippets";
 import { startBrowserBridge, stopBrowserBridge } from "./providers/tabs";
 import { refreshTheme, startThemes } from "./providers/themes";
 import { announceFirstRun, firstRunView } from "./providers/welcome";
-import { applyWindowAction, ensureWindowExtension, pointerPosition } from "./providers/windows";
+import { applyWindowAction, ensureWindowExtension, helperSendsClipboardEvents, pointerPosition } from "./providers/windows";
 import { launchableEntries, runAction, search, type SearchContext } from "./search";
 import { closeSocket, listenForRefs, socketPath } from "./socket";
 import { notify } from "./system";
@@ -38,6 +40,10 @@ const isDev = !app.isPackaged;
 const testMode = isDev && Boolean(process.env.BEAM_TEST_MODE);
 
 let win: BrowserWindow | null = null;
+/** Resolves once the current window's page has loaded. */
+let winLoaded: Promise<void> = Promise.resolve();
+let closeTimer: NodeJS.Timeout | null = null;
+let ready = false;
 let tray: Tray | null = null;
 
 protocol.registerSchemesAsPrivileged([
@@ -67,6 +73,8 @@ function createWindow(): BrowserWindow {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       sandbox: true,
+      // The search box has no use for it, and it loads a dictionary.
+      spellcheck: false,
     },
   });
   if (isDev && process.env.BEAM_DEV_URL) void window.loadURL(process.env.BEAM_DEV_URL);
@@ -75,16 +83,49 @@ function createWindow(): BrowserWindow {
   window.on("blur", () => {
     if (!testMode && !window.webContents.isDevToolsOpened()) window.hide();
   });
+  window.on("hide", scheduleClose);
+  window.on("closed", () => {
+    if (win === window) win = null;
+  });
   return window;
 }
 
+/** The window, created and loaded if low-memory mode closed it (or it was never opened). */
+function openWindow(): Promise<void> {
+  if (!win || win.isDestroyed()) {
+    win = createWindow();
+    const loading = win.webContents;
+    winLoaded = new Promise((resolve) => {
+      loading.once("did-finish-load", () => resolve());
+      loading.once("did-fail-load", () => resolve());
+    });
+  }
+  return winLoaded;
+}
+
+/** In low-memory mode, a window that stays hidden for a minute is closed, freeing its page. */
+function scheduleClose(): void {
+  if (closeTimer) clearTimeout(closeTimer);
+  closeTimer = null;
+  if (testMode || !lowMemoryMode(config().lowMemory, os.totalmem())) return;
+  closeTimer = setTimeout(() => {
+    closeTimer = null;
+    if (win && !win.isDestroyed() && !win.isVisible()) win.destroy();
+  }, CLOSE_HIDDEN_AFTER_MS);
+}
+
 async function showWindow(payload: ShowPayload): Promise<void> {
-  if (!win) return;
+  if (!ready) return;
+  if (closeTimer) clearTimeout(closeTimer);
+  closeTimer = null;
   // The first time the window opens, the tour stands in for the empty search.
   if (payload.view === "root" && !payload.result) payload = { view: firstRunView() ?? "root" };
   // Open on the display under the pointer; GNOME Shell knows where it is.
-  const pointer = screen.getAllDisplays().length > 1 ? await pointerPosition() : null;
-  if (!win) return;
+  const [pointer] = await Promise.all([
+    screen.getAllDisplays().length > 1 ? pointerPosition() : null,
+    openWindow(),
+  ]);
+  if (!win || win.isDestroyed()) return;
   const { workArea } = screen.getDisplayNearestPoint(pointer ?? screen.getCursorScreenPoint());
   win.setBounds(launcherBounds(workArea, WIDTH, HEIGHT));
   refreshTheme();
@@ -119,6 +160,8 @@ async function runRef(ref: string): Promise<void> {
   const [kind, ...rest] = ref.split(":");
   const id = rest.join(":");
   if (kind === "view") return showWindow({ view: id as View });
+  // Sent by Beam's GNOME helper, not a command anyone runs.
+  if (kind === "clipboard") return clipboardEvent(id);
   recordUse(ref);
   switch (kind) {
     case "app":
@@ -231,13 +274,15 @@ if (!app.requestSingleInstanceLock()) {
 
     loadConfig();
     registerIpc();
-    win = createWindow();
+    ready = true;
+    // In low-memory mode the window is made the first time it's needed.
+    if (!lowMemoryMode(config().lowMemory, os.totalmem())) void openWindow();
     startThemes(() => win);
     setWindowOpener(showWindow);
-    const loaded = new Promise<void>((resolve) => win!.webContents.once("did-finish-load", () => resolve()));
     createTray();
     ensureAutostart();
     startClipboardWatcher();
+    void helperSendsClipboardEvents().then((sends) => sends && clipboardEvent("watching"));
     startFileIndexer();
     void refreshRates();
     startFanGuard();
@@ -247,7 +292,7 @@ if (!app.requestSingleInstanceLock()) {
     if (!testMode) void ensureWindowExtension();
 
     const ref = parseRunArg(process.argv);
-    await loaded;
+    await winLoaded;
     if (ref) void runRef(ref);
     else if (!process.argv.includes("--hidden")) showWindow({ view: "root" });
     else announceFirstRun();

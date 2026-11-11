@@ -1,13 +1,89 @@
+import fs from "node:fs";
+import os from "node:os";
 import { app } from "electron";
-import { CONFIG_DIR } from "../config";
+import { CONFIG_DIR, config } from "../config";
 import { HIDE, type Entry } from "../entry";
-import { launchDetached, notify, openPath, runCapture } from "../system";
+import { footprintReport, lowMemoryMode, type ProcessUse } from "../footprint";
+import { isGnome, launchDetached, notify, openPath, runCapture } from "../system";
+import { clipboardPolling } from "./clipboard";
 import { openCreateQuicklinkForm } from "./quicklinks";
 import { openCreateScriptForm } from "./scripts";
 import { openCreateSnippetForm } from "./snippets";
 import { setLibadwaitaVariant, themeVariant } from "../appearance";
 import { confetti } from "./windows";
 import type { RunResult, View } from "../../shared/types";
+
+/** A process's proportional share of memory: shared pages split among the processes using them. */
+function pssKb(pid: number): number | null {
+  try {
+    const match = fs.readFileSync(`/proc/${pid}/smaps_rollup`, "utf8").match(/^Pss:\s+(\d+)/m);
+    return match ? Number(match[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Every process started under `pid`, from any of its threads; Chromium starts processes off the main one. */
+function descendants(pid: number): number[] {
+  let threads: string[] = [];
+  try {
+    threads = fs.readdirSync(`/proc/${pid}/task`);
+  } catch {
+    return [];
+  }
+  const children = threads.flatMap((tid) => {
+    try {
+      return fs.readFileSync(`/proc/${pid}/task/${tid}/children`, "utf8").split(" ").filter(Boolean).map(Number);
+    } catch {
+      return [];
+    }
+  });
+  return children.flatMap((child) => [child, ...descendants(child)]);
+}
+
+/** Electron's name for a process it didn't report (the zygotes), or the program's own name. */
+function processType(pid: number): string {
+  try {
+    const type = fs.readFileSync(`/proc/${pid}/cmdline`, "utf8").match(/--type=([\w-]+)/)?.[1];
+    if (type) return type === "zygote" ? "Zygote" : type;
+    return fs.readFileSync(`/proc/${pid}/comm`, "utf8").trim();
+  } catch {
+    return "Unknown";
+  }
+}
+
+function memoryUsage(): RunResult {
+  const metrics = app.getAppMetrics();
+  const processes: ProcessUse[] = metrics.map((metric) => ({
+    type: metric.type,
+    service: metric.serviceName,
+    kb: pssKb(metric.pid) ?? metric.memory.workingSetSize,
+  }));
+  // getAppMetrics leaves out the zygotes, which start the other processes.
+  const known = new Set(metrics.map((metric) => metric.pid));
+  for (const pid of descendants(process.pid)) {
+    const kb = known.has(pid) ? null : pssKb(pid);
+    if (kb !== null) processes.push({ type: processType(pid), kb });
+  }
+  const setting = config().lowMemory;
+  const ram = `${Math.round(os.totalmem() / 1024 ** 3)} GB`;
+  const lowMemory = lowMemoryMode(setting, os.totalmem())
+    ? "Low-memory mode is on: the window closes after a minute hidden, and opens again when called."
+    : setting === "off"
+      ? 'Low-memory mode is off ("lowMemory": "off" in config.json).'
+      : `Low-memory mode is off; it turns on by itself with 4 GB of RAM or less (this computer has ${ram}). Set "lowMemory" to "on" in config.json to close the window while it's hidden, about 40 MB less.`;
+  const clipboard = !clipboardPolling()
+    ? "Clipboard history: Beam's GNOME helper reports each copy, so Beam never polls."
+    : isGnome()
+      ? "Clipboard history: checked every 0.6 s until Beam's GNOME helper loads (log out and back in after an update); then the helper reports each copy instead."
+      : "Clipboard history: checked every 0.6 s.";
+  const notes = [
+    lowMemory,
+    clipboard,
+    "Memory shared between processes is split among them, so nothing is counted twice.",
+  ];
+  return { type: "output", title: "Beam Memory Usage", text: footprintReport(processes, notes) };
+}
 
 interface BuiltinCommand {
   name: string;
@@ -89,6 +165,7 @@ export function builtinCommands(reload: () => void): BuiltinCommand[] {
     { name: "scripts", title: "Script Commands", subtitle: "Beam", icon: "⚡", keywords: ["extensions"], run: view("scripts") },
     { name: "create-script", title: "Create Script Command", subtitle: "Beam", icon: "⚡", keywords: ["extension", "new"], run: openCreateScriptForm },
     { name: "open-config", title: "Open Beam Settings Folder", subtitle: "Beam", icon: "⚙️", keywords: ["preferences", "config"], run: () => { openPath(CONFIG_DIR); return HIDE; } },
+    { name: "memory", title: "Beam Memory Usage", subtitle: "Beam", icon: "📊", keywords: ["ram", "performance", "resources", "footprint", "monitor"], run: memoryUsage },
     { name: "reload", title: "Reload Beam", subtitle: "Beam", icon: "🔄", keywords: ["refresh", "apps"], run: () => { reload(); return { type: "stay", toast: "Reloaded settings, apps and scripts" }; } },
     { name: "quit", title: "Quit Beam", subtitle: "Beam", icon: "⏻", run: () => { app.quit(); return HIDE; } },
     { name: "confetti", title: "Confetti", subtitle: "Beam", icon: "🎉", keywords: ["celebrate", "party", "raining confetti"], run: () => { void confetti(); return HIDE; } },

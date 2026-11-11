@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import QRCode from "qrcode";
 import { HIDE, type Entry, type EntryAction, type Section, type ViewProvider } from "../entry";
 import { showForm } from "../forms";
 import { bestScore } from "../fuzzy";
+import { lazyBundle } from "../lazy";
+import type * as QrBundle from "../lazy/qr";
 import { copyText, launchDetached, notify, runCapture } from "../system";
 import { copyConcealed } from "./clipboard";
 import {
@@ -32,6 +33,8 @@ import {
   type WifiSecret,
 } from "../wifi";
 import type { RunResult } from "../../shared/types";
+
+const qr = lazyBundle<typeof QrBundle>("qr");
 
 const QUERY_MS = 10_000;
 /** How long nmcli waits for a connection to come up; runCapture allows a little more. */
@@ -296,7 +299,7 @@ async function showPassword(ssid: string, profiles: WifiProfile[]): Promise<RunR
   if (!secret.password) return { type: "error", message: `${ssid} has no saved password` };
   const lines = [`Network   ${ssid}`, `Password  ${secret.password}`];
   if (secret.keyMgmt === "wpa-eap") return { type: "output", title: ssid, text: lines.join("\n") };
-  const svg = await QRCode.toString(wifiQrText(ssid, secret), { type: "svg", margin: 2, errorCorrectionLevel: "M" });
+  const svg = await qr().svg(wifiQrText(ssid, secret));
   lines.push("", "Scan the code with a phone camera to join this network.");
   return {
     type: "output",

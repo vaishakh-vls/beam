@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import type { LowMemorySetting } from "./footprint";
 
 export const CONFIG_DIR = path.join(
   process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"),
@@ -40,6 +41,12 @@ export interface BeamConfig {
   theme: string;
   /** Show Beam's icon in the top bar (its menu opens Beam, clipboard history and snippets, reloads and quits). */
   trayIcon: boolean;
+  /**
+   * "on" closes Beam's window while it's hidden, saving about 40 MB, at the
+   * cost of a slower first open; "auto" does so on machines with 4 GB of RAM
+   * or less; "off" never does.
+   */
+  lowMemory: LowMemorySetting;
   /** Refs of the default keybinds already offered, so a new default is added once and a removed one stays removed. */
   offeredKeybinds: string[];
 }
@@ -66,6 +73,7 @@ const DEFAULT_CONFIG: BeamConfig = {
   giphyApiKey: "",
   theme: "beam-dark",
   trayIcon: true,
+  lowMemory: "auto",
   offeredKeybinds: [],
 };
 DEFAULT_CONFIG.offeredKeybinds = DEFAULT_CONFIG.keybinds.map((bind) => bind.ref);

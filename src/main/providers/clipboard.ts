@@ -17,21 +17,52 @@ const MAX_ITEM_CHARS = 200_000;
 
 const store = new JsonStore<{ items: ClipItem[] }>("clipboard-history.json", () => ({ items: [] }));
 let lastSeen = "";
+let poller: NodeJS.Timeout | null = null;
 
 /**
- * Polls the clipboard for new text. Electron runs under XWayland on GNOME,
- * where Mutter shares the clipboard with X11 apps, so this works on both
- * X11 and Wayland sessions.
+ * Watches the clipboard for new text. Beam's GNOME helper says each time
+ * something is copied (clipboardEvent); without it, Beam asks every 600 ms.
+ * Electron runs under XWayland on GNOME, where Mutter shares the clipboard
+ * with X11 apps, so reading works on both X11 and Wayland sessions.
  */
 export function startClipboardWatcher(): void {
   lastSeen = clipboard.readText();
-  setInterval(() => {
-    const text = clipboard.readText();
-    if (!text || text === lastSeen) return;
-    lastSeen = text;
-    if (isConcealed(text)) return;
-    record(text);
-  }, POLL_MS).unref();
+  startPolling();
+}
+
+/**
+ * A clipboard event from Beam's GNOME helper: "changed" after each copy,
+ * "watching" when it starts and "stopped" when it is disabled, as it is
+ * while the screen is locked. Polling wakes Beam, XWayland and the app that
+ * owns the clipboard 100 times a minute, so it only runs while the helper
+ * isn't watching.
+ */
+export function clipboardEvent(event: string): void {
+  if (event === "stopped") return startPolling();
+  stopPolling();
+  if (event === "changed") checkClipboard();
+}
+
+/** Whether Beam is asking for the clipboard every 600 ms, rather than told of copies by its GNOME helper. */
+export function clipboardPolling(): boolean {
+  return poller !== null;
+}
+
+function startPolling(): void {
+  poller ??= setInterval(checkClipboard, POLL_MS).unref();
+}
+
+function stopPolling(): void {
+  if (poller) clearInterval(poller);
+  poller = null;
+}
+
+function checkClipboard(): void {
+  const text = clipboard.readText();
+  if (!text || text === lastSeen) return;
+  lastSeen = text;
+  if (isConcealed(text)) return;
+  record(text);
 }
 
 /** Copies text that must stay out of clipboard history, such as a Wi-Fi password or a generated secret. */

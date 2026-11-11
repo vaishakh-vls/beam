@@ -1,16 +1,13 @@
-import emojiData from "unicode-emoji-json/data-by-emoji.json";
 import { HIDE, type Entry } from "../entry";
 import { bestScore } from "../fuzzy";
+import { lazyBundle } from "../lazy";
+import type * as EmojiBundle from "../lazy/emoji";
 import { JsonStore } from "../store";
 import { copyText, pasteText, pasteVerb } from "../system";
 
-interface EmojiInfo {
-  name: string;
-  slug: string;
-  group: string;
-}
+type EmojiInfo = EmojiBundle.EmojiInfo;
 
-const ALL = Object.entries(emojiData as Record<string, EmojiInfo>);
+const emoji = lazyBundle<typeof EmojiBundle>("emoji");
 const recent = new JsonStore<{ emoji: string[] }>("emoji-recent.json", () => ({ emoji: [] }));
 
 function markUsed(emoji: string): void {
@@ -21,27 +18,27 @@ function markUsed(emoji: string): void {
 export function emojiSections(query: string, hide: () => void): Array<{ title: string; entries: Entry[] }> {
   const q = query.trim();
   if (q) {
-    const matches = ALL.map(([emoji, info]) => ({
-      emoji,
+    const matches = emoji().all.map(([symbol, info]) => ({
+      symbol,
       info,
       score: bestScore(q, [info.name, info.slug.replaceAll("_", " "), info.group]),
     }))
       .filter((m) => m.score >= 300)
       .sort((a, b) => b.score - a.score)
       .slice(0, 160);
-    return [{ title: "Results", entries: matches.map((m) => emojiEntry(m.emoji, m.info, hide)) }];
+    return [{ title: "Results", entries: matches.map((m) => emojiEntry(m.symbol, m.info, hide)) }];
   }
 
   const sections: Array<{ title: string; entries: Entry[] }> = [];
-  const lookup = emojiData as Record<string, EmojiInfo>;
+  const { all, lookup } = emoji();
   const recents = recent.data.emoji.filter((e) => lookup[e]);
   if (recents.length) {
     sections.push({ title: "Recently Used", entries: recents.map((e) => emojiEntry(e, lookup[e], hide)) });
   }
   const groups = new Map<string, Entry[]>();
-  for (const [emoji, info] of ALL) {
+  for (const [symbol, info] of all) {
     if (!groups.has(info.group)) groups.set(info.group, []);
-    groups.get(info.group)!.push(emojiEntry(emoji, info, hide));
+    groups.get(info.group)!.push(emojiEntry(symbol, info, hide));
   }
   for (const [title, entries] of groups) sections.push({ title, entries });
   return sections;

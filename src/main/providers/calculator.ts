@@ -1,31 +1,9 @@
-import { create, all } from "mathjs";
 import type { Entry } from "../entry";
+import { lazyBundle } from "../lazy";
+import type * as MathBundle from "../lazy/math";
 import { copyText, pasteText, pasteVerb } from "../system";
 
-const math = create(all, {});
-// Expressions come from the search box, so turn off everything that could
-// define functions or touch anything beyond arithmetic and unit conversion.
-const evaluate = math.evaluate.bind(math);
-math.import(
-  {
-    import: () => {
-      throw new Error("disabled");
-    },
-    createUnit: () => {
-      throw new Error("disabled");
-    },
-    parse: () => {
-      throw new Error("disabled");
-    },
-    simplify: () => {
-      throw new Error("disabled");
-    },
-    derivative: () => {
-      throw new Error("disabled");
-    },
-  },
-  { override: true },
-);
+const math = lazyBundle<typeof MathBundle>("math");
 
 /** Does the text look like math/unit conversion rather than a word search? */
 function looksLikeMath(query: string): boolean {
@@ -49,7 +27,7 @@ function formatResult(value: unknown): string | null {
   if (value && typeof value === "object" && "toString" in value) {
     const type = (value as { type?: string }).type;
     if (type === "Unit" || type === "BigNumber" || type === "Fraction" || type === "Complex") {
-      return math.format(value as never, { precision: 10 });
+      return math().format(value);
     }
   }
   return null;
@@ -60,7 +38,7 @@ export function calculatorEntry(query: string, hide: () => void): Entry | null {
   if (!q || !looksLikeMath(q)) return null;
   let result: string | null = null;
   try {
-    result = formatResult(evaluate(normalise(q)));
+    result = formatResult(math().evaluate(normalise(q)));
   } catch {
     return null;
   }

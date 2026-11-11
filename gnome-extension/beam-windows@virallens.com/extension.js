@@ -18,8 +18,18 @@
 //     --object-path /org/virallens/BeamWindows \
 //     --method org.virallens.BeamWindows.Pointer
 //
+//   gdbus call --session --dest org.virallens.BeamWindows \
+//     --object-path /org/virallens/BeamWindows \
+//     --method org.virallens.BeamWindows.ClipboardEvents
+//
 // Pointer returns where the mouse pointer is, so Beam opens on that display:
 // Beam runs through XWayland, which only sees the pointer over Beam itself.
+//
+// ClipboardEvents answers true: this extension tells Beam each time something
+// is copied, by sending "clipboard:changed" to Beam's command socket, so Beam
+// doesn't have to keep asking. It also sends "clipboard:watching" when it is
+// enabled and "clipboard:stopped" when it is disabled (as when the screen
+// locks); Beam reads the clipboard itself while it is stopped.
 //
 // Apply takes an action, with its value after a colon where it needs one:
 // "move-window:100,80", "resize-window:1200,800", "move-to-desktop:3".
@@ -50,6 +60,9 @@ const INTERFACE_XML = `
     <method name="Pointer">
       <arg type="i" direction="out" name="x"/>
       <arg type="i" direction="out" name="y"/>
+    </method>
+    <method name="ClipboardEvents">
+      <arg type="b" direction="out" name="sent"/>
     </method>
     <method name="LockKeyboard">
       <arg type="u" direction="in" name="seconds"/>
@@ -125,6 +138,32 @@ function isBeam(win) {
   return (win.get_wm_class() ?? "").toLowerCase() === "beam";
 }
 
+/**
+ * Sends a command ref to Beam's socket, the way `beam-run` does, without
+ * waiting. Nothing happens when Beam isn't running.
+ */
+function tellBeam(ref) {
+  const file = GLib.build_filenamev([GLib.get_user_runtime_dir(), "beam.sock"]);
+  if (!GLib.file_test(file, GLib.FileTest.EXISTS)) return;
+  new Gio.SocketClient().connect_async(Gio.UnixSocketAddress.new(file), null, (client, result) => {
+    let connection;
+    try {
+      connection = client.connect_finish(result);
+    } catch {
+      return;
+    }
+    const bytes = new GLib.Bytes(new TextEncoder().encode(ref));
+    connection.get_output_stream().write_bytes_async(bytes, GLib.PRIORITY_DEFAULT, null, (stream, written) => {
+      try {
+        stream.write_bytes_finish(written);
+      } catch {
+        // Beam went away; nothing to tell.
+      }
+      connection.close_async(GLib.PRIORITY_DEFAULT, null, null);
+    });
+  });
+}
+
 export default class BeamWindowsExtension extends Extension {
   enable() {
     this._lock = null;
@@ -140,9 +179,16 @@ export default class BeamWindowsExtension extends Extension {
     this._dbus = Gio.DBusExportedObject.wrapJSObject(INTERFACE_XML, this);
     this._dbus.export(Gio.DBus.session, OBJECT_PATH);
     this._ownerId = Gio.bus_own_name(Gio.BusType.SESSION, BUS_NAME, Gio.BusNameOwnerFlags.NONE, null, null, null);
+    this._selectionId = global.display.get_selection().connect("owner-changed", (_selection, type) => {
+      if (type === Meta.SelectionType.SELECTION_CLIPBOARD) tellBeam("clipboard:changed");
+    });
+    tellBeam("clipboard:watching");
   }
 
   disable() {
+    if (this._selectionId) global.display.get_selection().disconnect(this._selectionId);
+    this._selectionId = null;
+    tellBeam("clipboard:stopped");
     // Also runs when the screen locks, so a lock can never outlive the session.
     this._unlockKeyboard();
     for (const show of [...this._confettiShows]) this._stopConfetti(show);
@@ -181,6 +227,11 @@ export default class BeamWindowsExtension extends Extension {
   Pointer() {
     const [x, y] = global.get_pointer();
     return [x, y];
+  }
+
+  /** D-Bus method: true, as this version sends clipboard events to Beam. */
+  ClipboardEvents() {
+    return true;
   }
 
   /**
