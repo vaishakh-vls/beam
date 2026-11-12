@@ -87,7 +87,7 @@ Any command can get its own hotkey or alias from its action panel (`Ctrl+K`). Sh
 - **Caffeinate**: keep the laptop awake until stopped, or for a set time
 - **Speed test**: ping, jitter, download and upload, measured against Cloudflare
 - **Clean Keyboard**: lock the keyboard for up to 5 minutes so you can wipe it
-- **Start Screensaver**: shows the Agents Screensaver GNOME extension at once when it's installed (it covers every screen without locking; input wakes it only after a second of stillness, so the hotkey's own keys don't); otherwise GNOME's own screensaver, which blanks and locks the screen. Give it a hotkey like any command.
+- **Start Screensaver**: shows the Agents Screensaver GNOME extension at once when it's installed (it locks the screen and covers every monitor; input wakes it, to the lock screen, only after a second of stillness, so the hotkey's own keys don't); otherwise GNOME's own screensaver, which blanks and locks the screen. Give it a hotkey like any command.
 - **Browser Tabs**: search the open tabs of every Chrome window, switch to one or close it
 - **Developer Tools**: decode JWT and bearer tokens, format JSON, convert timestamps, Base64, URLs and number bases, hash text, generate UUIDs, passwords and secrets
 - **Convert Files**: images, video, audio and documents, e.g. PNG to JPEG, HEIC to JPEG, MP4 to GIF, DOCX to PDF
