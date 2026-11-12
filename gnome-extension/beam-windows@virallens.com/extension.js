@@ -27,12 +27,23 @@
 //
 // ClipboardEvents answers true: this extension tells Beam each time something
 // is copied, by sending "clipboard:changed" to Beam's command socket, so Beam
-// doesn't have to keep asking. It also sends "clipboard:watching" when it is
-// enabled and "clipboard:stopped" when it is disabled (as when the screen
-// locks); Beam reads the clipboard itself while it is stopped.
+// doesn't have to keep asking. It also sends "clipboard:watching" when it
+// starts and "clipboard:stopped" when it stops (as when the screen locks);
+// Beam reads the clipboard itself while it is stopped. Each event ends with
+// the shell's monotonic clock ("clipboard:watching:1234567"), so Beam can
+// drop one that arrives after a later one.
 //
 // Apply takes an action, with its value after a colon where it needs one:
 // "move-window:100,80", "resize-window:1200,800", "move-to-desktop:3".
+//
+// It also lets Beam quit before you log out, restart or shut down. Beam draws
+// through XWayland, which closes together with the shell, and Electron crashes
+// when its display goes away. GNOME warns only the apps that register with its
+// session manager, and Electron apps don't, so this extension registers for
+// Beam: when the session ends it sends "session:end" to Beam's socket and holds
+// the logout until Beam's processes have exited (for at most a few seconds).
+// That part stays on while the screen is locked, so a shutdown from the lock
+// screen is covered too; everything else is off while locked.
 
 import Clutter from "gi://Clutter";
 import Gio from "gi://Gio";
@@ -74,6 +85,13 @@ const INTERFACE_XML = `
 
 /** A keyboard lock never outlasts this, whatever the caller asks for. */
 const MAX_LOCK_SECONDS = 300;
+
+const SESSION_MANAGER = "org.gnome.SessionManager";
+const SESSION_PATH = "/org/gnome/SessionManager";
+const CLIENT_INTERFACE = "org.gnome.SessionManager.ClientPrivate";
+/** How long a logout waits for Beam to quit before it goes on anyway. */
+const QUIT_WAIT_MS = 3000;
+const QUIT_POLL_MS = 100;
 
 /** Fractions of the work area: [x, y, width, height]. */
 const LAYOUTS = {
@@ -138,12 +156,237 @@ function isBeam(win) {
   return (win.get_wm_class() ?? "").toLowerCase() === "beam";
 }
 
+function beamSocket() {
+  return GLib.build_filenamev([GLib.get_user_runtime_dir(), "beam.sock"]);
+}
+
+/** Reads /proc/<pid>/stat: [name, state, parent pid], or null once the process is gone. */
+function processStat(pid) {
+  try {
+    const [, bytes] = GLib.file_get_contents(`/proc/${pid}/stat`);
+    const stat = new TextDecoder().decode(bytes);
+    // "pid (name) state ppid ...": the name can hold spaces and brackets, so split at the last ")".
+    const close = stat.lastIndexOf(")");
+    const [state, ppid] = stat.slice(close + 2).split(" ");
+    return [stat.slice(stat.indexOf("(") + 1, close), state, Number(ppid)];
+  } catch {
+    return null;
+  }
+}
+
+/** A process and all its descendants (Beam's zygote, GPU and renderer processes), by PID. */
+function processFamily(root) {
+  const children = new Map();
+  let entries;
+  try {
+    entries = Gio.File.new_for_path("/proc").enumerate_children("standard::name", Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
+  } catch {
+    return new Set([root]);
+  }
+  for (let info = entries.next_file(null); info; info = entries.next_file(null)) {
+    const pid = Number(info.get_name());
+    if (!Number.isInteger(pid)) continue;
+    const ppid = processStat(pid)?.[2];
+    if (ppid) children.set(ppid, [...(children.get(ppid) ?? []), pid]);
+  }
+  entries.close(null);
+  const family = new Set([root]);
+  for (const pid of family) for (const child of children.get(pid) ?? []) family.add(child);
+  return family;
+}
+
+/** Still running: there, and not a zombie that has exited but not been reaped yet. */
+function alive(pid) {
+  const state = processStat(pid)?.[1];
+  return state !== undefined && state !== "Z" && state !== "X";
+}
+
+/**
+ * A client of GNOME's session manager, registered for Beam (see the top of
+ * this file). Every QueryEndSession and EndSession gets an answer, as an
+ * unanswered client holds up the logout.
+ */
+class SessionClient {
+  constructor() {
+    this._path = null;
+    this._signalId = 0;
+    this._waitId = 0;
+    this._deadlineId = 0;
+    this._ending = false;
+    this._destroyed = false;
+    Gio.DBus.session.call(
+      SESSION_MANAGER,
+      SESSION_PATH,
+      SESSION_MANAGER,
+      "RegisterClient",
+      new GLib.Variant("(ss)", ["beam-windows", ""]),
+      new GLib.VariantType("(o)"),
+      Gio.DBusCallFlags.NO_AUTO_START,
+      -1,
+      null,
+      (connection, result) => {
+        let path;
+        try {
+          [path] = connection.call_finish(result).deepUnpack();
+        } catch {
+          // No GNOME session manager here, or the session is already ending.
+          return;
+        }
+        // Disabled before the answer came: don't leave a client nobody answers for.
+        if (this._destroyed) {
+          unregisterClient(path);
+          return;
+        }
+        this._path = path;
+        this._signalId = connection.signal_subscribe(
+          SESSION_MANAGER,
+          CLIENT_INTERFACE,
+          null,
+          path,
+          null,
+          Gio.DBusSignalFlags.NONE,
+          (_connection, _sender, _path, _interface, signal) => this._onSignal(signal),
+        );
+      },
+    );
+  }
+
+  _onSignal(signal) {
+    if (signal === "QueryEndSession") {
+      // Beam never objects to a logout.
+      this._respond();
+    } else if (signal === "EndSession") {
+      if (this._ending) return;
+      this._ending = true;
+      // Whatever happens below, GNOME gets its answer: a client that doesn't
+      // answer holds the logout up for a minute and a half.
+      this._deadlineId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, QUIT_WAIT_MS + 1000, () => {
+        this._deadlineId = 0;
+        this._finishEnd();
+        return GLib.SOURCE_REMOVE;
+      });
+      try {
+        this._quitBeam();
+      } catch (error) {
+        console.warn(`beam-windows: ${error}`);
+        this._finishEnd();
+      }
+    }
+  }
+
+  /**
+   * Tells Beam to quit and answers once Beam's processes have all exited:
+   * Beam's socket says which process is listening (Beam's main process), and
+   * the helper waits for it and its children, for at most QUIT_WAIT_MS.
+   */
+  _quitBeam() {
+    const file = beamSocket();
+    if (!GLib.file_test(file, GLib.FileTest.EXISTS)) {
+      this._finishEnd();
+      return;
+    }
+    new Gio.SocketClient().connect_async(Gio.UnixSocketAddress.new(file), null, (client, result) => {
+      let connection;
+      try {
+        connection = client.connect_finish(result);
+      } catch {
+        // Beam isn't running (its socket file was left behind).
+        this._finishEnd();
+        return;
+      }
+      let family;
+      try {
+        family = processFamily(connection.get_socket().get_credentials().get_unix_pid());
+      } catch {
+        family = new Set();
+      }
+      const bytes = new GLib.Bytes(new TextEncoder().encode("session:end"));
+      connection.get_output_stream().write_bytes_async(bytes, GLib.PRIORITY_DEFAULT, null, (stream, written) => {
+        try {
+          stream.write_bytes_finish(written);
+        } catch {
+          // Beam went away already.
+        }
+        connection.close_async(GLib.PRIORITY_DEFAULT, null, null);
+        if (this._ending) this._waitForExit(family);
+      });
+    });
+  }
+
+  _waitForExit(family) {
+    const started = GLib.get_monotonic_time();
+    const check = () => {
+      const running = [...family].some(alive);
+      if (running && GLib.get_monotonic_time() - started < QUIT_WAIT_MS * 1000) return GLib.SOURCE_CONTINUE;
+      if (running) console.warn("beam-windows: Beam did not quit before the session ended");
+      this._waitId = 0;
+      this._finishEnd();
+      return GLib.SOURCE_REMOVE;
+    };
+    if (check() === GLib.SOURCE_CONTINUE) this._waitId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, QUIT_POLL_MS, check);
+  }
+
+  /** Answers the EndSession, once. */
+  _finishEnd() {
+    if (!this._ending) return;
+    this._ending = false;
+    if (this._deadlineId) GLib.source_remove(this._deadlineId);
+    if (this._waitId) GLib.source_remove(this._waitId);
+    this._deadlineId = 0;
+    this._waitId = 0;
+    if (!this._destroyed) this._respond();
+  }
+
+  _respond() {
+    if (!this._path) return;
+    Gio.DBus.session.call(
+      SESSION_MANAGER,
+      this._path,
+      CLIENT_INTERFACE,
+      "EndSessionResponse",
+      new GLib.Variant("(bs)", [true, ""]),
+      null,
+      Gio.DBusCallFlags.NO_AUTO_START,
+      -1,
+      null,
+      null,
+    );
+  }
+
+  destroy() {
+    this._destroyed = true;
+    if (this._waitId) GLib.source_remove(this._waitId);
+    if (this._deadlineId) GLib.source_remove(this._deadlineId);
+    this._waitId = 0;
+    this._deadlineId = 0;
+    if (this._signalId) Gio.DBus.session.signal_unsubscribe(this._signalId);
+    this._signalId = 0;
+    if (this._path) unregisterClient(this._path);
+    this._path = null;
+  }
+}
+
+function unregisterClient(path) {
+  Gio.DBus.session.call(
+    SESSION_MANAGER,
+    SESSION_PATH,
+    SESSION_MANAGER,
+    "UnregisterClient",
+    new GLib.Variant("(o)", [path]),
+    null,
+    Gio.DBusCallFlags.NO_AUTO_START,
+    -1,
+    null,
+    null,
+  );
+}
+
 /**
  * Sends a command ref to Beam's socket, the way `beam-run` does, without
  * waiting. Nothing happens when Beam isn't running.
  */
 function tellBeam(ref) {
-  const file = GLib.build_filenamev([GLib.get_user_runtime_dir(), "beam.sock"]);
+  const file = beamSocket();
   if (!GLib.file_test(file, GLib.FileTest.EXISTS)) return;
   new Gio.SocketClient().connect_async(Gio.UnixSocketAddress.new(file), null, (client, result) => {
     let connection;
@@ -166,6 +409,29 @@ function tellBeam(ref) {
 
 export default class BeamWindowsExtension extends Extension {
   enable() {
+    this._session = new SessionClient();
+    this._started = false;
+    this._modeId = Main.sessionMode.connect("updated", () => this._syncMode());
+    this._syncMode();
+  }
+
+  disable() {
+    if (this._modeId) Main.sessionMode.disconnect(this._modeId);
+    this._modeId = null;
+    this._stopFeatures();
+    this._session?.destroy();
+    this._session = null;
+  }
+
+  /** Window management, the keyboard lock and clipboard events are off while the screen is locked. */
+  _syncMode() {
+    if (Main.sessionMode.isLocked) this._stopFeatures();
+    else this._startFeatures();
+  }
+
+  _startFeatures() {
+    if (this._started) return;
+    this._started = true;
     this._lock = null;
     this._confettiShows = new Set();
     this._lastWindow = null;
@@ -180,16 +446,18 @@ export default class BeamWindowsExtension extends Extension {
     this._dbus.export(Gio.DBus.session, OBJECT_PATH);
     this._ownerId = Gio.bus_own_name(Gio.BusType.SESSION, BUS_NAME, Gio.BusNameOwnerFlags.NONE, null, null, null);
     this._selectionId = global.display.get_selection().connect("owner-changed", (_selection, type) => {
-      if (type === Meta.SelectionType.SELECTION_CLIPBOARD) tellBeam("clipboard:changed");
+      if (type === Meta.SelectionType.SELECTION_CLIPBOARD) tellBeam(`clipboard:changed:${GLib.get_monotonic_time()}`);
     });
-    tellBeam("clipboard:watching");
+    tellBeam(`clipboard:watching:${GLib.get_monotonic_time()}`);
   }
 
-  disable() {
+  _stopFeatures() {
+    if (!this._started) return;
+    this._started = false;
     if (this._selectionId) global.display.get_selection().disconnect(this._selectionId);
     this._selectionId = null;
-    tellBeam("clipboard:stopped");
-    // Also runs when the screen locks, so a lock can never outlive the session.
+    tellBeam(`clipboard:stopped:${GLib.get_monotonic_time()}`);
+    // Also runs when the screen locks, so a keyboard lock can never outlive the session.
     this._unlockKeyboard();
     for (const show of [...this._confettiShows]) this._stopConfetti(show);
     if (this._focusId) global.display.disconnect(this._focusId);

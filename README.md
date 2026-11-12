@@ -60,7 +60,7 @@ Any command can get its own hotkey or alias from its action panel (`Ctrl+K`). Sh
 - **Settings pages**: every page of GNOME Settings (Displays, Power, Sound, Mouse & Touchpad...), found by its name or by what's on it, as GNOME's own search does: `night light`, `resolution` and `monitor` find Displays, `battery` finds Power, `trackpad` finds Mouse & Touchpad. **Toggle Night Light** turns Night Light on or off and says when it runs
 - **Files**: indexed search of the folders in `fileSearchRoots`, with **Quick Look** (`Ctrl+Y`: text, formatted JSON, images, a PDF's first page, folder contents) and **Open With…** (`Ctrl+O`: the apps for that file type, every other app, and "Always Open … with" to change the default)
 - **Welcome tour** on first launch: every feature with a "Try It"; reopen it any time with **Welcome to Beam**
-- **Clipboard history**: text and images, with password and token filtering
+- **Clipboard history**: text and images, with password and token filtering. `Super+Shift+P` pins the selected entry (and unpins it): pinned entries stay at the top, most recently pinned first, and are kept through restarts, the history size limit and Clear Entire History, until you unpin or delete them
 - **Snippets** with placeholders (`{clipboard}`, `{date}`, ...)
 - **Quicklinks** to URLs with `{query}`
 - **Emoji picker**
@@ -87,6 +87,7 @@ Any command can get its own hotkey or alias from its action panel (`Ctrl+K`). Sh
 - **Caffeinate**: keep the laptop awake until stopped, or for a set time
 - **Speed test**: ping, jitter, download and upload, measured against Cloudflare
 - **Clean Keyboard**: lock the keyboard for up to 5 minutes so you can wipe it
+- **Start Screensaver**: shows the Agents Screensaver GNOME extension at once when it's installed (it covers every screen without locking; input wakes it only after a second of stillness, so the hotkey's own keys don't); otherwise GNOME's own screensaver, which blanks and locks the screen. Give it a hotkey like any command.
 - **Browser Tabs**: search the open tabs of every Chrome window, switch to one or close it
 - **Developer Tools**: decode JWT and bearer tokens, format JSON, convert timestamps, Base64, URLs and number bases, hash text, generate UUIDs, passwords and secrets
 - **Convert Files**: images, video, audio and documents, e.g. PNG to JPEG, HEIC to JPEG, MP4 to GIF, DOCX to PDF
@@ -104,6 +105,7 @@ Beam sits in the background all day, so it is built to stay small and quiet:
 - **About 250 MB in all** across its processes, measured on Beam 0.2.9 (0.2.8 took 355 MB). Most of it is Electron itself.
 - **Beam Memory Usage** shows how much each of Beam's processes is using right now, with shared memory split between them so nothing is counted twice.
 - **No polling for the clipboard**: Beam's GNOME helper tells Beam each time something is copied, so an idle Beam uses no CPU and wakes about once a second. Without the helper (another desktop, or before the first log out after installing), Beam checks the clipboard every 0.6 s instead.
+- **Quits cleanly at log out**: Beam draws through XWayland, which closes with the session, and Electron crashes when its display goes away (Ubuntu then shows "beam closed unexpectedly" after the next login). GNOME warns only apps that register with its session manager, so the helper registers for Beam: when you log out, restart or shut down, it tells Beam to quit and holds the logout until Beam has exited (3 s at most). Autostart opens Beam again at the next login.
 - **Low-memory mode** (`"lowMemory"` in the config): Beam closes its window after it has been hidden for a minute and only creates it again when called (at login too), which saves about 40 MB; the next open takes a few hundred milliseconds instead of being instant. `"auto"` (the default) turns it on for computers with 4 GB of RAM or less, `"on"` always, `"off"` never.
 - **Loaded when first used**: the calculator (mathjs), the emoji list and the Wi-Fi QR code library load the first time you need them.
 - **Compact file index**: about 80,000 file names take about 10 MB.
@@ -281,7 +283,7 @@ On Wayland, apps can't type into other windows, so pasting from Beam copies to t
 | `src/renderer/` | React UI |
 | `src/shared/` | Types shared by both |
 | `src/main/lazy/` | Bundles loaded the first time they are needed: mathjs, the emoji list, QR codes |
-| `gnome-extension/` | GNOME Shell helper for window management, Clean Keyboard, Confetti and the pointer position (D-Bus); it also tells Beam when something is copied |
+| `gnome-extension/` | GNOME Shell helper for window management, Clean Keyboard, Confetti and the pointer position (D-Bus); it also tells Beam when something is copied, and lets Beam quit before the session ends |
 | `chrome-extension/` | Chrome extension behind Browser Tabs |
 | `scripts/` | Build helpers: bundling, icons, and packing the signed Chrome extension |
 | `install.sh` | The one-step installer |

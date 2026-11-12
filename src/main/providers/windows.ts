@@ -254,8 +254,13 @@ export async function ensureWindowExtension(): Promise<void> {
   }
 
   const { stdout } = await runCapture("gsettings", ["get", "org.gnome.shell", "enabled-extensions"]);
-  if (!stdout.includes(UUID)) {
-    const current = [...stdout.matchAll(/'([^']*)'/g)].map((m) => m[1]);
+  // Only a list that was really read is written back with the helper added:
+  // after a failed read, writing back just the helper would turn off every
+  // other extension.
+  const listed = stdout.trim();
+  if (!/^(@as )?\[.*\]$/s.test(listed)) return;
+  if (!listed.includes(UUID)) {
+    const current = [...listed.matchAll(/'([^']*)'/g)].map((m) => m[1]);
     const list = `[${[...current, UUID].map((id) => `'${id}'`).join(", ")}]`;
     await runCapture("gsettings", ["set", "org.gnome.shell", "enabled-extensions", list]);
   }

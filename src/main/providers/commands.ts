@@ -98,6 +98,20 @@ function view(name: View): () => RunResult {
   return () => ({ type: "view", view: name });
 }
 
+/**
+ * Shows the Agents Screensaver GNOME extension at once when it is installed:
+ * it covers every screen without locking, and waits for a second of
+ * stillness before input wakes it, so the hotkey's own keys don't. Without
+ * it, GNOME's own screensaver, which blanks and locks the screen.
+ */
+async function startScreensaver(): Promise<void> {
+  const call = (dest: string, objectPath: string, method: string, ...args: string[]) =>
+    runCapture("gdbus", ["call", "--session", "--dest", dest, "--object-path", objectPath, "--method", method, ...args], { timeoutMs: 3000 });
+  const agents = await call("org.virallens.AgentsScreensaver", "/org/virallens/AgentsScreensaver", "org.virallens.AgentsScreensaver.Show");
+  if (agents.code === 0) return;
+  await call("org.gnome.ScreenSaver", "/org/gnome/ScreenSaver", "org.gnome.ScreenSaver.SetActive", "true");
+}
+
 function detached(command: string, ...args: string[]): () => RunResult {
   return () => {
     launchDetached(command, args);
@@ -172,6 +186,7 @@ export function builtinCommands(reload: () => void): BuiltinCommand[] {
 
     // System
     { name: "lock", title: "Lock Screen", subtitle: "System", icon: "🔒", run: detached("loginctl", "lock-session") },
+    { name: "screensaver", title: "Start Screensaver", subtitle: "System", icon: "🌌", keywords: ["screen saver", "away", "agents", "blank"], run: () => { void startScreensaver(); return HIDE; } },
     { name: "sleep", title: "Sleep", subtitle: "System", icon: "🌙", keywords: ["suspend"], run: detached("systemctl", "suspend") },
     { name: "logout", title: "Log Out", subtitle: "System", icon: "🚪", keywords: ["sign out"], run: detached("gnome-session-quit", "--logout") },
     { name: "restart", title: "Restart", subtitle: "System", icon: "🔁", keywords: ["reboot"], run: detached("gnome-session-quit", "--reboot") },

@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, ipcMain, Menu, net, protocol, screen, Tray } from "electron";
 import { parseRunArg } from "./cli";
 import { config, loadConfig } from "./config";
+import { flushStores } from "./store";
 import { launcherBounds } from "./displays";
 import { CLOSE_HIDDEN_AFTER_MS, lowMemoryMode } from "./footprint";
 import { submitForm } from "./forms";
@@ -15,7 +16,7 @@ import { launchApp, loadApps } from "./providers/apps";
 import { loadPanels } from "./providers/settings";
 import { stopCaffeinate } from "./providers/caffeinate";
 import { stopConversions } from "./providers/convert";
-import { clipboardEvent, startClipboardWatcher } from "./providers/clipboard";
+import { askHelperForClipboardEvents, clipboardEvent, startClipboardWatcher } from "./providers/clipboard";
 import { startFanGuard } from "./providers/fans";
 import { refreshRates } from "./providers/currency";
 import { rebuildFileIndex, startFileIndexer } from "./providers/files";
@@ -154,14 +155,28 @@ function handleResult(result: RunResult | null, ref: string): void {
   }
 }
 
+/**
+ * "session:end" comes from Beam's GNOME helper when you log out, restart or
+ * shut down. Beam quits at once: it draws through XWayland, which closes with
+ * the session, and Electron crashes (and Ubuntu reports it) when its display
+ * goes away. Autostart opens Beam again at the next login.
+ */
+function sessionEvent(event: string): void {
+  if (event !== "end") return;
+  app.quit();
+  // will-quit cleans up first; if anything holds the quit up, exit anyway.
+  setTimeout(() => app.exit(0), 1000).unref();
+}
+
 /** Runs a command by its ref, from a hotkey or `beam --run <ref>`. */
 async function runRef(ref: string): Promise<void> {
   if (ref === "toggle") return toggleWindow();
   const [kind, ...rest] = ref.split(":");
   const id = rest.join(":");
   if (kind === "view") return showWindow({ view: id as View });
-  // Sent by Beam's GNOME helper, not a command anyone runs.
+  // Sent by Beam's GNOME helper, not commands anyone runs.
   if (kind === "clipboard") return clipboardEvent(id);
+  if (kind === "session") return sessionEvent(id);
   recordUse(ref);
   switch (kind) {
     case "app":
@@ -282,7 +297,7 @@ if (!app.requestSingleInstanceLock()) {
     createTray();
     ensureAutostart();
     startClipboardWatcher();
-    void helperSendsClipboardEvents().then((sends) => sends && clipboardEvent("watching"));
+    void askHelperForClipboardEvents(helperSendsClipboardEvents);
     startFileIndexer();
     void refreshRates();
     startFanGuard();
@@ -299,6 +314,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on("will-quit", () => {
+    flushStores();
     closeSocket();
     stopCaffeinate();
     stopConversions();

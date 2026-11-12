@@ -1,15 +1,12 @@
 import { clipboard } from "electron";
+import { ClipboardEventOrder, parseClipboardEvent } from "../clipevents";
+import { addCopy, inDisplayOrder, togglePin, withoutUnpinned, type ClipItem } from "../cliphistory";
 import { config } from "../config";
 import { HIDE, type Entry } from "../entry";
 import { fuzzyScore } from "../fuzzy";
 import { JsonStore } from "../store";
 import { looksLikeSecret } from "../secrets";
 import { copyText, pasteText, pasteVerb, truncate } from "../system";
-
-interface ClipItem {
-  text: string;
-  copiedAt: number;
-}
 
 const POLL_MS = 600;
 /** Very large copies (logs, files) are skipped to keep history fast. */
@@ -18,6 +15,9 @@ const MAX_ITEM_CHARS = 200_000;
 const store = new JsonStore<{ items: ClipItem[] }>("clipboard-history.json", () => ({ items: [] }));
 let lastSeen = "";
 let poller: NodeJS.Timeout | null = null;
+const order = new ClipboardEventOrder();
+/** When Beam asks the helper whether it is watching, as it may still be starting at login. */
+const HELPER_CHECKS_MS = [0, 5_000, 20_000, 60_000];
 
 /**
  * Watches the clipboard for new text. Beam's GNOME helper says each time
@@ -37,10 +37,32 @@ export function startClipboardWatcher(): void {
  * owns the clipboard 100 times a minute, so it only runs while the helper
  * isn't watching.
  */
-export function clipboardEvent(event: string): void {
-  if (event === "stopped") return startPolling();
+export function clipboardEvent(id: string): void {
+  const parsed = parseClipboardEvent(id);
+  // Each event comes on its own connection, so an older one can arrive late.
+  if (!order.accept(parsed)) return;
+  if (parsed.event === "stopped") return startPolling();
   stopPolling();
-  if (event === "changed") checkClipboard();
+  if (parsed.event === "changed") checkClipboard();
+}
+
+/**
+ * Asks Beam's GNOME helper whether it sends clipboard events, at startup and
+ * a few times after: at login the helper can start after Beam, and Beam
+ * would otherwise poll until the screen next locks and unlocks. Stops once
+ * the helper says yes or sends an event of its own.
+ */
+export async function askHelperForClipboardEvents(helperSends: () => Promise<boolean>): Promise<void> {
+  let waited = 0;
+  for (const at of HELPER_CHECKS_MS) {
+    await new Promise((resolve) => setTimeout(resolve, at - waited).unref());
+    waited = at;
+    if (order.heardFromHelper) return;
+    if (await helperSends()) {
+      clipboardEvent("watching");
+      return;
+    }
+  }
 }
 
 /** Whether Beam is asking for the clipboard every 600 ms, rather than told of copies by its GNOME helper. */
@@ -83,10 +105,14 @@ function isConcealed(text: string): boolean {
 
 function record(text: string): void {
   if (!text.trim() || text.length > MAX_ITEM_CHARS) return;
-  const items = store.data.items.filter((item) => item.text !== text);
-  items.unshift({ text, copiedAt: Date.now() });
-  store.data.items = items.slice(0, config().clipboardHistorySize);
+  store.data.items = addCopy(store.data.items, text, Date.now(), config().clipboardHistorySize);
   store.save();
+}
+
+/** Pins or unpins an entry; written to disk at once, so a pin survives a crash or power cut too. */
+function pin(text: string): void {
+  store.data.items = togglePin(store.data.items, text, Date.now());
+  store.saveNow();
 }
 
 function remove(text: string): void {
@@ -119,12 +145,13 @@ export function clipboardEntries(
   saveAsSnippet: (text: string) => Entry["actions"][number]["run"],
 ): Entry[] {
   const q = query.trim();
-  const items = store.data.items.filter((item) => !q || fuzzyScore(q, item.text) >= 300);
-  return items.map((item, index) => ({
-    id: `clip:${index}:${item.copiedAt}`,
+  const items = inDisplayOrder(store.data.items).filter((item) => !q || fuzzyScore(q, item.text) >= 300);
+  return items.map((item) => ({
+    // Stable, so the selection follows an entry that moves when pinned.
+    id: `clip:${item.copiedAt}:${item.text.length}`,
     title: truncate(item.text, 120),
     icon: kindIcon(item.text),
-    accessory: relativeTime(item.copiedAt),
+    accessory: item.pinnedAt !== undefined ? "📌 Pinned" : relativeTime(item.copiedAt),
     preview: item.text,
     actions: [
       {
@@ -155,6 +182,17 @@ export function clipboardEntries(
         run: saveAsSnippet(item.text),
       },
       {
+        id: "pin",
+        title: item.pinnedAt !== undefined ? "Unpin Entry" : "Pin Entry",
+        // Super+Shift+P; combos list modifiers as Ctrl, Alt, Shift, Super.
+        shortcut: "Shift+Super+P",
+        run: () => {
+          const pinned = item.pinnedAt === undefined;
+          pin(item.text);
+          return { type: "stay", toast: pinned ? "Pinned: stays on top and through restarts" : "Unpinned" };
+        },
+      },
+      {
         id: "delete",
         title: "Delete Entry",
         shortcut: "Ctrl+D",
@@ -170,9 +208,10 @@ export function clipboardEntries(
         shortcut: "Ctrl+Shift+D",
         danger: true,
         run: () => {
-          store.data.items = [];
+          store.data.items = withoutUnpinned(store.data.items);
           store.saveNow();
-          return { type: "stay", toast: "Clipboard history cleared" };
+          const kept = store.data.items.length;
+          return { type: "stay", toast: kept ? `Clipboard history cleared; ${kept} pinned kept` : "Clipboard history cleared" };
         },
       },
     ],
