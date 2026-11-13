@@ -11,7 +11,8 @@
 
 set -euo pipefail
 
-DEB_URL="https://github.com/vaishakh-vls/beam/releases/latest/download/beam_amd64.deb"
+REPO="vaishakh-vls/beam"
+DEB_URL="https://github.com/$REPO/releases/latest/download/beam_amd64.deb"
 
 say() { printf '\033[1;35m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -24,6 +25,18 @@ download() {
     else
         die "Downloading needs curl or wget (sudo apt install curl)."
     fi
+}
+
+# Prints a page to the terminal's output, for reading the release list.
+fetch() {
+    if command -v curl >/dev/null; then curl -fsSL "$1"; else wget -qO- "$1"; fi
+}
+
+# The newest release's .deb, whatever it is called there. The fixed name in
+# DEB_URL is tried first; this covers a release uploaded as beam_1.2.3_amd64.deb.
+newest_deb_url() {
+    fetch "https://api.github.com/repos/$REPO/releases/latest" |
+        grep -o '"browser_download_url": *"[^"]*_amd64\.deb"' | head -n 1 | cut -d '"' -f 4
 }
 
 # Everything runs from here, so bash has read the whole script before anything
@@ -52,7 +65,11 @@ main() {
         "")
             say "Downloading the newest Beam release"
             deb="$work/beam_amd64.deb"
-            download "$DEB_URL" "$deb" || die "Could not download $DEB_URL"
+            if ! download "$DEB_URL" "$deb" 2>/dev/null; then
+                url="$(newest_deb_url || true)"
+                [ -n "$url" ] || die "Could not find a Beam package at https://github.com/$REPO/releases"
+                download "$url" "$deb" || die "Could not download $url"
+            fi
             ;;
         *)
             die "Unknown option: $1 (use a .deb path, --build, or nothing)"
