@@ -12,6 +12,7 @@ import {
   type BtDevice,
   type Controller,
 } from "../bluetooth";
+import { bluetoothScan } from "../btscan";
 import { HIDE, type Entry, type EntryAction, type Section, type ViewProvider } from "../entry";
 import { bestScore } from "../fuzzy";
 import { launchDetached, notify, runCapture } from "../system";
@@ -156,8 +157,8 @@ function startScan(): RunResult {
   if (scanning) return { type: "stay", toast: "Already scanning" };
   scanning = true;
   invalidate();
-  // BlueZ stops discovery when bluetoothctl exits; found devices stay listed for about 30 seconds after.
-  void bluetoothctl(["--timeout", String(SCAN_SECONDS), "scan", "on"], (SCAN_SECONDS + 7) * 1000).finally(() => {
+  // BlueZ stops discovery when the scan ends; found devices stay listed for about 30 seconds after.
+  void bluetoothScan(SCAN_SECONDS, "auto").finally(() => {
     scanning = false;
     invalidate();
   });

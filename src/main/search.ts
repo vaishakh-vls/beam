@@ -6,6 +6,7 @@ import { hotkeyFor, setHotkey } from "./keybinds";
 import { appEntries } from "./providers/apps";
 import { audioCommands, audioView, volumeEntry } from "./providers/audio";
 import { bluetoothCommands, bluetoothView } from "./providers/bluetooth";
+import { devicesCommands, devicesView } from "./providers/devices";
 import { caffeinateCommands, caffeinateView } from "./providers/caffeinate";
 import { calculatorEntry } from "./providers/calculator";
 import { chromeCommands, chromeView } from "./providers/chrome";
@@ -65,6 +66,7 @@ const VIEWS: Partial<Record<View, ViewProvider>> = {
   gifs: gifView,
   wifi: wifiView,
   bluetooth: bluetoothView,
+  devices: devicesView,
   audio: audioView,
   colors: colorView,
   caffeinate: caffeinateView,
@@ -104,6 +106,7 @@ export function launchableEntries(ctx: SearchContext): Entry[] {
     ...gifCommands(ctx.hide),
     ...wifiCommands(ctx.hide),
     ...bluetoothCommands(ctx.hide),
+    ...devicesCommands(ctx.hide),
     ...audioCommands(ctx.hide),
     ...colorCommands(ctx.hide),
     ...caffeinateCommands(ctx.hide),

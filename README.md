@@ -82,6 +82,7 @@ Any command can get its own hotkey or alias from its action panel (`Ctrl+K`). Sh
 - **GIF search**: search GIPHY and copy a GIF's URL or Markdown
 - **Wi-Fi**: connect to, disconnect from and forget networks, turn Wi-Fi on or off, and copy or show saved passwords with a QR code for phones
 - **Bluetooth**: connect, pair and remove devices, and turn Bluetooth on or off
+- **Devices**: battery of AirPods nearby (left, right and case), of a plugged-in iPhone, and of connected Bluetooth devices
 - **Audio**: volume, mute, and output and input devices. `volume 40` in the main search sets the volume.
 - **Color picker**: pick a color anywhere on screen, copy it as HEX, RGB, HSL or OKLCH, and keep a history. Typing `#ff8800` or `rgb(255, 136, 0)` in the main search converts it.
 - **Caffeinate**: keep the laptop awake until stopped, or for a set time
@@ -187,6 +188,16 @@ Commands: **Bluetooth** (My Devices and New Devices, with battery levels where r
 - New device: `Enter` Pair & Connect (it's also trusted, so it reconnects by itself), `Ctrl+Enter` Open Bluetooth Settings.
 - **Scan for New Devices** scans for 8 seconds; put the device in pairing mode first. Devices that need a PIN or code pair in GNOME Settings.
 
+### Devices
+
+Command: **Devices**. Three lists, refreshed every 2 seconds while open:
+
+- **iPhone and iPad:** battery, charging, iOS version and free storage of a phone plugged in with a cable. The phone must trust the laptop once: unlock it and tap Trust (`Enter` on an untrusted phone asks for it). Needs `libimobiledevice-utils` (`sudo apt install libimobiledevice-utils`); Ubuntu's `usbmuxd` reads phones over USB only, not Wi-Fi.
+- **AirPods Nearby:** AirPods and Beats broadcast their battery over Bluetooth, so they show without being paired to the laptop: left, right and case in steps of 10%, ⚡ while charging, nearest first. An earbud that is asleep reports nothing (–); opening the case lid wakes them. Everybody's AirPods within a few metres show, since the broadcast does not say whose they are; yours are normally the ones "Next to you". Beam scans only while the view is open.
+- **Connected over Bluetooth:** mice, keyboards and headphones connected to the laptop, with their battery where they report it.
+
+`Enter` copies the levels; `Ctrl+Enter` opens the Bluetooth view. No Find My and no location: Apple keeps those to its own devices.
+
 ### Audio
 
 **Audio Devices** shows the output volume, Mute, preset levels from 0 to 100%, output devices, microphone mute and input devices. Uses WirePlumber's `wpctl`; the volume is capped at 100%.
@@ -279,7 +290,7 @@ On Wayland, apps can't type into other windows, so pasting from Beam copies to t
 | Path | Contents |
 |---|---|
 | `src/main/` | Electron main process: search, hotkeys, IPC, and the pure helpers behind the providers |
-| `src/main/providers/` | Apps, Settings pages, files, clipboard, snippets, quicklinks, emoji, calculator, currency, scripts, windows, processes, fans, Spotify, Chrome, GIFs, Wi-Fi, Bluetooth, audio, color, caffeinate, speed test, keyboard, Browser Tabs, developer tools, file conversion, Open With and Quick Look, power, fonts, themes, welcome tour |
+| `src/main/providers/` | Apps, Settings pages, files, clipboard, snippets, quicklinks, emoji, calculator, currency, scripts, windows, processes, fans, Spotify, Chrome, GIFs, Wi-Fi, Bluetooth, devices, audio, color, caffeinate, speed test, keyboard, Browser Tabs, developer tools, file conversion, Open With and Quick Look, power, fonts, themes, welcome tour |
 | `src/renderer/` | React UI |
 | `src/shared/` | Types shared by both |
 | `src/main/lazy/` | Bundles loaded the first time they are needed: mathjs, the emoji list, QR codes |

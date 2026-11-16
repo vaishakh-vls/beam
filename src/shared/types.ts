@@ -57,6 +57,7 @@ export type View =
   | "gifs"
   | "audio"
   | "bluetooth"
+  | "devices"
   | "wifi"
   | "caffeinate"
   | "clean-keyboard"
