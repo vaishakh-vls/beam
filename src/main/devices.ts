@@ -107,6 +107,38 @@ export function parseEarbuds(text: string): Earbuds[] {
   return found.sort((a, b) => b.rssi - a.rssi);
 }
 
+export interface Connected {
+  address: string;
+  name: string;
+  /** Freedesktop icon name from BlueZ, e.g. "input-mouse". */
+  icon: string;
+  /** Percent, when the device reports it. */
+  battery: number | null;
+}
+
+/** A GVariant string property; gdbus writes a text holding an apostrophe in double quotes. */
+function textProperty(chunk: string, name: string): string | null {
+  const match = new RegExp(`'${name}': <(?:'((?:[^'\\\\]|\\\\.)*)'|"((?:[^"\\\\]|\\\\.)*)")>`).exec(chunk);
+  return match ? (match[1] ?? match[2]).replace(/\\(.)/g, "$1") : null;
+}
+
+/** The devices connected to the laptop, from the same GetManagedObjects text, by name. */
+export function parseConnected(text: string): Connected[] {
+  const found: Connected[] = [];
+  for (const chunk of text.split(/'\/org\/bluez\/hci\d+\/dev_/).slice(1)) {
+    const address = /'Address': <'([0-9A-Fa-f:]{17})'>/.exec(chunk);
+    if (!address || !/'Connected': <true>/.test(chunk)) continue;
+    const battery = /'org\.bluez\.Battery1': \{[^}]*'Percentage': <byte 0x([0-9a-fA-F]{2})>/.exec(chunk);
+    found.push({
+      address: address[1].toUpperCase(),
+      name: textProperty(chunk, "Alias") || textProperty(chunk, "Name") || address[1].toUpperCase(),
+      icon: textProperty(chunk, "Icon") ?? "",
+      battery: battery ? Number.parseInt(battery[1], 16) : null,
+    });
+  }
+  return found.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /** How far a signal of this strength roughly is. */
 export function nearness(rssi: number): string {
   if (rssi >= -55) return "Next to you";

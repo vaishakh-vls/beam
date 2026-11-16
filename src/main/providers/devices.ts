@@ -1,14 +1,16 @@
 import { bluetoothScan } from "../btscan";
-import { deviceType, parseDeviceInfo, parseDeviceList, type BtDevice } from "../bluetooth";
+import { deviceType } from "../bluetooth";
 import {
   earbudsLevels,
   gigabytes,
   nearness,
+  parseConnected,
   parseEarbuds,
   parseIdeviceInfo,
   parseUdids,
   phoneFrom,
   phoneProblem,
+  type Connected,
   type Earbuds,
   type Phone,
 } from "../devices";
@@ -70,16 +72,25 @@ function earbudsEntry(buds: Earbuds): Entry {
   };
 }
 
-async function earbudsEntries(): Promise<Entry[]> {
+/**
+ * Everything BlueZ knows, in one D-Bus call. Not bluetoothctl: while a scan
+ * runs in a room full of devices it now and then crashes as it exits, and
+ * Ubuntu then shows a crash report.
+ */
+async function bluezObjects(): Promise<string | null> {
   const { code, stdout } = await runCapture(
     "gdbus",
     ["call", "--system", "--dest", "org.bluez", "--object-path", "/", "--method", "org.freedesktop.DBus.ObjectManager.GetManagedObjects"],
     { timeoutMs: QUERY_MS },
   );
-  if (code !== 0) return [hint("no-bluetooth", "Bluetooth Is Unavailable", "AirPods are read over Bluetooth", "⚠️")];
-  if (!/'Powered': <true>/.test(stdout)) return [hint("bluetooth-off", "Bluetooth Is Off", "Turn it on to see AirPods nearby", "⚪")];
+  return code === 0 ? stdout : null;
+}
+
+function earbudsEntries(objects: string | null): Entry[] {
+  if (objects === null) return [hint("no-bluetooth", "Bluetooth Is Unavailable", "AirPods are read over Bluetooth", "⚠️")];
+  if (!/'Powered': <true>/.test(objects)) return [hint("bluetooth-off", "Bluetooth Is Off", "Turn it on to see AirPods nearby", "⚪")];
   listen();
-  const near = parseEarbuds(stdout)
+  const near = parseEarbuds(objects)
     .filter((buds) => buds.rssi >= MIN_RSSI)
     .slice(0, MAX_EARBUDS);
   if (near.length) return near.map(earbudsEntry);
@@ -139,7 +150,8 @@ async function phoneEntries(): Promise<Entry[]> {
   return entries;
 }
 
-function bluetoothEntry(device: BtDevice): Entry {
+/** A device connected to the laptop: the kind that can say how full it is. */
+function bluetoothEntry(device: Connected): Entry {
   const type = deviceType(device.icon);
   const battery = device.battery !== null ? `Battery ${device.battery}%` : "";
   return {
@@ -151,15 +163,6 @@ function bluetoothEntry(device: BtDevice): Entry {
     keywords: [type.label, "bluetooth", "battery"],
     actions: [{ ...openBluetooth, shortcut: "↵" }],
   };
-}
-
-/** Connected Bluetooth devices: the ones that can say how full they are. */
-async function bluetoothEntries(): Promise<Entry[]> {
-  const list = await runCapture("bluetoothctl", ["devices", "Connected"], { timeoutMs: QUERY_MS });
-  const devices = await Promise.all(
-    parseDeviceList(list.stdout).map(async ({ address }) => parseDeviceInfo((await runCapture("bluetoothctl", ["info", address], { timeoutMs: QUERY_MS })).stdout)),
-  );
-  return devices.filter((device): device is BtDevice => device !== null && device.connected).map(bluetoothEntry);
 }
 
 export function devicesCommands(_hide: () => void): Entry[] {
@@ -180,7 +183,9 @@ export function devicesCommands(_hide: () => void): Entry[] {
 export const devicesView: ViewProvider = {
   info: { title: "Devices", placeholder: "Search devices…", preview: false, grid: false, refreshMs: 2000 },
   async sections(query: string): Promise<Section[]> {
-    const [phoneList, buds, bluetooth] = await Promise.all([phoneEntries(), earbudsEntries(), bluetoothEntries()]);
+    const [phoneList, objects] = await Promise.all([phoneEntries(), bluezObjects()]);
+    const buds = earbudsEntries(objects);
+    const bluetooth = parseConnected(objects ?? "").map(bluetoothEntry);
     const q = query.trim();
     const matches = (entry: Entry) => !q || bestScore(q, [entry.title, ...(entry.keywords ?? [])]) > 0;
     return [

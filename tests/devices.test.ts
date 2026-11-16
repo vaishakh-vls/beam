@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decodeProximity, earbudsLevels, gigabytes, nearness, parseEarbuds, parseIdeviceInfo, parseUdids, phoneFrom, phoneProblem } from "../src/main/devices.ts";
+import { decodeProximity, earbudsLevels, gigabytes, nearness, parseConnected, parseEarbuds, parseIdeviceInfo, parseUdids, phoneFrom, phoneProblem } from "../src/main/devices.ts";
 
 const hex = (text: string) => text.match(/../g)!.map((byte) => Number.parseInt(byte, 16));
 const PAD = "00".repeat(16);
@@ -78,4 +78,13 @@ test("says what to do when the phone will not answer", () => {
   assert.match(phoneProblem("ERROR: Could not connect to lockdownd: Pairing dialog response pending (-19)"), /Tap Trust/);
   assert.match(phoneProblem("ERROR: Could not connect to lockdownd: Invalid HostID (-21)"), /pair/);
   assert.match(phoneProblem("something else"), /plug it in again/);
+});
+
+test("lists the devices connected to the laptop, with battery where reported", () => {
+  const objects = `({'/org/bluez/hci0': {'org.bluez.Adapter1': {'Powered': <true>}}, '/org/bluez/hci0/dev_AA_11_22_33_44_55': {'org.bluez.Device1': {'Address': <'AA:11:22:33:44:55'>, 'Name': <'MX Master 3S'>, 'Alias': <"Sam's Mouse">, 'Icon': <'input-mouse'>, 'Paired': <true>, 'Connected': <true>}, 'org.bluez.Battery1': {'Percentage': <byte 0x50>, 'Source': <'HID'>}}, '/org/bluez/hci0/dev_AA_11_22_33_44_55/service000a': {'org.bluez.GattService1': {'Primary': <true>}}, '/org/bluez/hci0/dev_BB_11_22_33_44_55': {'org.bluez.Device1': {'Address': <'BB:11:22:33:44:55'>, 'Alias': <'Keys'>, 'Icon': <'input-keyboard'>, 'Connected': <true>}}, '/org/bluez/hci0/dev_CC_11_22_33_44_55': {'org.bluez.Device1': {'Address': <'CC:11:22:33:44:55'>, 'Alias': <'Old Speaker'>, 'Connected': <false>}}},)`;
+  assert.deepEqual(parseConnected(objects), [
+    { address: "BB:11:22:33:44:55", name: "Keys", icon: "input-keyboard", battery: null },
+    { address: "AA:11:22:33:44:55", name: "Sam's Mouse", icon: "input-mouse", battery: 80 },
+  ]);
+  assert.deepEqual(parseConnected(OBJECTS), []);
 });
