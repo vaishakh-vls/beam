@@ -31,6 +31,8 @@ const INSTALL_COMMAND = "sudo apt install libimobiledevice-utils";
 
 let scanning = false;
 let phones: { at: number; entries: Entry[] } | null = null;
+/** Whether the farther-away sets (probably other people's) are shown too. */
+let showAllEarbuds = false;
 
 /** AirPods only show up while BlueZ is scanning; nothing keeps listening after the view is closed. */
 function listen(): void {
@@ -59,16 +61,41 @@ function hint(id: string, title: string, subtitle: string, icon: string, actions
   return { id: `devices:${id}`, title, subtitle, icon, actions };
 }
 
-function earbudsEntry(buds: Earbuds): Entry {
+function earbudsEntry(buds: Earbuds, lidHint: boolean): Entry {
   const levels = earbudsLevels(buds);
+  // Only the set in front of you gets the lid hint; a case is "–" when the lid is shut and the buds are out.
+  const needsLid = lidHint && !buds.single && buds.case === null && (buds.left !== null || buds.right !== null);
   return {
     id: `devices:buds:${buds.address}`,
     title: buds.model,
-    subtitle: levels,
+    subtitle: needsLid ? `${levels}  ·  open the case lid for its battery` : levels,
     icon: "🎧",
     accessory: nearness(buds.rssi),
     keywords: ["airpods", "beats", "earbuds", "headphones", "battery"],
     actions: [copyAction("Copy Battery Levels", `${buds.model}: ${levels}`), openBluetooth],
+  };
+}
+
+/** The line that folds the farther sets away, or opens them back up. */
+function moreEarbudsEntry(others: number): Entry {
+  const collapsed = !showAllEarbuds;
+  return {
+    id: "devices:more-buds",
+    title: collapsed ? `${others} more ${others === 1 ? "set" : "sets"} nearby` : "Show fewer",
+    subtitle: collapsed ? "Probably other people's" : "",
+    icon: "👥",
+    keywords: ["others", "more", "nearby", "hide", "fewer", "all"],
+    actions: [
+      {
+        id: "toggle",
+        title: collapsed ? "Show All Nearby" : "Show Fewer",
+        shortcut: "↵",
+        run: (): RunResult => {
+          showAllEarbuds = !showAllEarbuds;
+          return { type: "stay" };
+        },
+      },
+    ],
   };
 }
 
@@ -86,15 +113,22 @@ async function bluezObjects(): Promise<string | null> {
   return code === 0 ? stdout : null;
 }
 
-function earbudsEntries(objects: string | null): Entry[] {
+/** When searching (collapse off) every match shows; otherwise only the closest set, the rest folded away. */
+function earbudsEntries(objects: string | null, collapse: boolean): Entry[] {
   if (objects === null) return [hint("no-bluetooth", "Bluetooth Is Unavailable", "AirPods are read over Bluetooth", "⚠️")];
   if (!/'Powered': <true>/.test(objects)) return [hint("bluetooth-off", "Bluetooth Is Off", "Turn it on to see AirPods nearby", "⚪")];
   listen();
   const near = parseEarbuds(objects)
     .filter((buds) => buds.rssi >= MIN_RSSI)
     .slice(0, MAX_EARBUDS);
-  if (near.length) return near.map(earbudsEntry);
-  return [hint("no-buds", "Looking for AirPods…", "Open the case lid or put them in your ears", "🎧")];
+  if (!near.length) return [hint("no-buds", "Looking for AirPods…", "Open the case lid or put them in your ears", "🎧")];
+  // The nearest set is the one on you; the hint and the "yours" spot go to it.
+  if (!collapse || near.length === 1 || showAllEarbuds) {
+    const all = near.map((buds, index) => earbudsEntry(buds, index === 0));
+    if (collapse && near.length > 1) all.push(moreEarbudsEntry(near.length - 1));
+    return all;
+  }
+  return [earbudsEntry(near[0], true), moreEarbudsEntry(near.length - 1)];
 }
 
 async function ideviceinfo(udid: string, domain?: string): Promise<{ ok: boolean; output: string }> {
@@ -184,9 +218,9 @@ export const devicesView: ViewProvider = {
   info: { title: "Devices", placeholder: "Search devices…", preview: false, grid: false, refreshMs: 2000 },
   async sections(query: string): Promise<Section[]> {
     const [phoneList, objects] = await Promise.all([phoneEntries(), bluezObjects()]);
-    const buds = earbudsEntries(objects);
-    const bluetooth = parseConnected(objects ?? "").map(bluetoothEntry);
     const q = query.trim();
+    const buds = earbudsEntries(objects, q === "");
+    const bluetooth = parseConnected(objects ?? "").map(bluetoothEntry);
     const matches = (entry: Entry) => !q || bestScore(q, [entry.title, ...(entry.keywords ?? [])]) > 0;
     return [
       { title: "iPhone and iPad", entries: phoneList.filter(matches) },
